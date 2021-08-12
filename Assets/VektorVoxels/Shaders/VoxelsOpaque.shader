@@ -34,10 +34,8 @@ Shader "Voxels/Opaque" {
 
         void vert(inout appdata_full v, out Input o) {
             UNITY_INITIALIZE_OUTPUT(Input, o);
-
-            const half dirLight = saturate(dot(v.normal, normalize(float3(1, 0, 1))));
             
-            o.sunLight = v.texcoord1 * _SunIntensity * dirLight;
+            o.sunLight = v.texcoord1 * _SunIntensity;
             o.sunLight.rgb *= _SunTint.rgb;
             o.blockLight = v.texcoord2 * _BlockIntensity;
         }

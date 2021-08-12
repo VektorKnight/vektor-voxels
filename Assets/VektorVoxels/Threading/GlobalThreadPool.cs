@@ -32,12 +32,12 @@ namespace VektorVoxels.Threading {
             Debug.Log($"[Global Thread Pool] Initialized with {threadCount} threads.");
         }
 
-        public void EnqueueWorkItem(Action workItem) {
-            _threadPool.EnqueueWorkItem(workItem);
+        public static void QueueWorkItem(Action workItem) {
+            Instance._threadPool.EnqueueWorkItem(workItem);
         }
 
-        public void QueueOnMain(Action a) {
-            _mainQueue.Enqueue(a);
+        public static void QueueOnMain(Action a) {
+            Instance._mainQueue.Enqueue(a);
         }
 
         private void Update() {
