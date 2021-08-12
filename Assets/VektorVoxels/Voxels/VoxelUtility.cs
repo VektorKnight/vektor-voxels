@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using UnityEngine;
 
-namespace VoxelLighting.Voxels {
+namespace VektorVoxels.Voxels {
     public static class VoxelUtility {
         /// <summary>
         /// Determines if a voxel coordinate is within the local grid.

@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
-using VoxelLighting.Lighting;
+using VektorVoxels.Lighting;
 
-namespace VoxelLighting.Voxels {
+namespace VektorVoxels.Voxels {
     /// <summary>
     /// Hard-coded voxel definitions cause I'm lazy.
     /// (Maybe an automatic system would be less work overall, oh well)

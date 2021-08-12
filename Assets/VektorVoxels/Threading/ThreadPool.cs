@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace VoxelLighting.Threading {
+namespace VektorVoxels.Threading {
 	 /// <summary>
     /// Custom thread pool with progressive throttling.
     /// </summary>

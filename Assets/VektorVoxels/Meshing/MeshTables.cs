@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace VoxelLighting.Meshing {
+namespace VektorVoxels.Meshing {
     public static class MeshTables {
         // Face vertices (North is Z+).
         // Clockwise always starting from the bottom left.

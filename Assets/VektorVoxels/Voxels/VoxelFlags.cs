@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace VoxelLighting.Voxels {
+namespace VektorVoxels.Voxels {
     /// <summary>
     /// Configuration flags for a particular voxel.
     /// </summary>

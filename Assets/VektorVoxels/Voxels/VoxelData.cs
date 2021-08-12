@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using VoxelLighting.Lighting;
+using VektorVoxels.Lighting;
 
-namespace VoxelLighting.Voxels {
+namespace VektorVoxels.Voxels {
     /// <summary>
     /// Represents a single voxel stored voxel data instance.
     /// Additional data that is both global and infrequently accessed is stored in the Voxel Attribute Table.

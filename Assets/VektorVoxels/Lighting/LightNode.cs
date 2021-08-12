@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace VoxelLighting.Lighting {
+namespace VektorVoxels.Lighting {
     public readonly struct LightNode {
         public readonly Vector3Int Position;
         public readonly Color16 Value;

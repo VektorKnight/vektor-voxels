@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace VoxelLighting.Lighting {
+namespace VektorVoxels.Lighting {
     [StructLayout(LayoutKind.Sequential)]
     public struct LightData {
         public Color16 Sun;

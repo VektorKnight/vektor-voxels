@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace VoxelLighting.World {
+namespace VektorVoxels.World {
     [Serializable]
     public enum WorldType {
         Flat,   // Completely flat, like Minecraft's super-flat.

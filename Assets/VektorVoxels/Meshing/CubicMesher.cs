@@ -1,13 +1,14 @@
 ﻿// Copyright 2021, Derek de la Peza (aka VektorKnight)
 // The following code is subject to the license terms defined in LICENSE.md
+
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VoxelLighting.Lighting;
-using VoxelLighting.Voxels;
+using VektorVoxels.Lighting;
+using VektorVoxels.Voxels;
 
-namespace VoxelLighting.Meshing {
+namespace VektorVoxels.Meshing {
     /// <summary>
     /// Performs Minecraft-style cubic meshing of a voxel grid.
     /// </summary>

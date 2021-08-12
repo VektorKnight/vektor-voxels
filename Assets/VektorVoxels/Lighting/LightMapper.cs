@@ -1,11 +1,9 @@
 ﻿using System.Collections.Generic;
-using System.Diagnostics;
 using UnityEngine;
-using VoxelLighting.Meshing;
-using VoxelLighting.Voxels;
-using Debug = UnityEngine.Debug;
+using VektorVoxels.Meshing;
+using VektorVoxels.Voxels;
 
-namespace VoxelLighting.Lighting {
+namespace VektorVoxels.Lighting {
     /// <summary>
     /// Performs lightmapping for a voxel grid.
     /// </summary>

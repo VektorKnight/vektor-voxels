@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
-using VoxelLighting.Lighting;
+using VektorVoxels.Lighting;
 
-namespace VoxelLighting.Voxels {
+namespace VektorVoxels.Voxels {
     public sealed class VoxelDefinition {
         public readonly uint Id;
         public readonly string Name;
