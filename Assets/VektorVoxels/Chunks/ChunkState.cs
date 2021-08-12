@@ -1,4 +1,4 @@
-﻿namespace VoxelLighting.Chunks {
+﻿namespace VektorVoxels.Chunks {
     public enum ChunkState {
         Uninitialized,    
         TerrainGeneration,      

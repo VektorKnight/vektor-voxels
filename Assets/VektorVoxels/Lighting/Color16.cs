@@ -3,7 +3,7 @@ using System.Diagnostics.Contracts;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
-namespace VoxelLighting.Lighting {
+namespace VektorVoxels.Lighting {
     /// <summary>
     /// Voxel light color for lighting and attenuation.
     /// Due to the need for bitwise packing/unpacking,

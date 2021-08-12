@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace VoxelLighting.World {
+namespace VektorVoxels.World {
     /// <summary>
     /// Mostly handles chunks and loading/unloading.
     /// </summary>

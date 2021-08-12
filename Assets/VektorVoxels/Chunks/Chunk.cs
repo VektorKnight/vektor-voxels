@@ -1,12 +1,12 @@
 ﻿using System;
 using UnityEngine;
-using VoxelLighting.Lighting;
-using VoxelLighting.Meshing;
-using VoxelLighting.Threading;
-using VoxelLighting.Voxels;
-using VoxelLighting.World;
+using VektorVoxels.Lighting;
+using VektorVoxels.Meshing;
+using VektorVoxels.Threading;
+using VektorVoxels.Voxels;
+using VektorVoxels.World;
 
-namespace VoxelLighting.Chunks {
+namespace VektorVoxels.Chunks {
     [RequireComponent(typeof(MeshFilter))]
     [RequireComponent(typeof(MeshRenderer))]
     [RequireComponent(typeof(MeshCollider))]

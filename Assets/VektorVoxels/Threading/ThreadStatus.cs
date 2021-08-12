@@ -1,4 +1,4 @@
-﻿namespace VoxelLighting.Threading {
+﻿namespace VektorVoxels.Threading {
 	public enum ThreadStatus {
 		/// <summary>
 		/// Thread is actively spinning and checking for work.

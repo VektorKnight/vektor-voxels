@@ -1,18 +1,10 @@
-﻿using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using Unity.Collections;
-using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.UI;
-using VoxelLighting.Lighting;
-using VoxelLighting.Meshing;
-using VoxelLighting.Threading;
-using VoxelLighting.Voxels;
-using Debug = UnityEngine.Debug;
-using Random = UnityEngine.Random;
+﻿using UnityEngine;
+using VektorVoxels.Lighting;
+using VektorVoxels.Meshing;
+using VektorVoxels.Threading;
+using VektorVoxels.Voxels;
 
-namespace VoxelLighting.Tests {
+namespace VektorVoxels.Tests {
     [RequireComponent(typeof(MeshFilter))]
     public class TestCube : MonoBehaviour {
         public Vector3Int Dimensions = new Vector3Int(32, 32, 32);

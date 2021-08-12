@@ -1,4 +1,4 @@
-﻿namespace VoxelLighting.Threading {
+﻿namespace VektorVoxels.Threading {
 	/// <summary>
 	/// Parameters for thread states.
 	/// A value of -1 for a specific state will disable that state and any others below it.

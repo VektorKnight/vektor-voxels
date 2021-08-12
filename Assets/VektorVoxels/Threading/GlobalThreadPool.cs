@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using UnityEngine;
 
-namespace VoxelLighting.Threading {
+namespace VektorVoxels.Threading {
     public class GlobalThreadPool : MonoBehaviour {
         public static GlobalThreadPool Instance { get; private set; }
 

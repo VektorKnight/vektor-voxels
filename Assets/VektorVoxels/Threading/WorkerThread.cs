@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Threading;
 using UnityEngine;
 
-namespace VoxelLighting.Threading {
+namespace VektorVoxels.Threading {
 	public sealed class WorkerThread {
         private readonly BlockingCollection<Action> _workQueue;
         private readonly ThreadConfig _config;

@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using UnityEngine;
 
-namespace VoxelLighting.Meshing {
+namespace VektorVoxels.Meshing {
     /// <summary>
     /// Vertex layout for a voxel mesh.
     /// </summary>
