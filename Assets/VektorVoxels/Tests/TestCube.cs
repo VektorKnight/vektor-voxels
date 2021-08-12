@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using VektorVoxels.Chunks;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
@@ -14,7 +15,7 @@ namespace VektorVoxels.Tests {
         
         // Voxel grid data.
         private VoxelData[] _voxelData;
-        private byte[] _heightMap;
+        private HeightData[] _heightMap;
         private Color16[] _blockLight;
         private Color16[] _sunLight;
 
@@ -24,18 +25,18 @@ namespace VektorVoxels.Tests {
             _lightMapper = new LightMapper();
             _mesher = new CubicMesher();
             _voxelData = new VoxelData[Dimensions.x * Dimensions.y * Dimensions.z];
-            _heightMap = new byte[Dimensions.x * Dimensions.z];
+            _heightMap = new HeightData[Dimensions.x * Dimensions.z];
             _blockLight = new Color16[Dimensions.x * Dimensions.y * Dimensions.z];
             _sunLight = new Color16[Dimensions.x * Dimensions.y * Dimensions.z];
         }
 
         private void Update() {
             if (Input.GetKeyDown(KeyCode.Space)) {
-                GlobalThreadPool.Instance.EnqueueWorkItem(() => {
+                GlobalThreadPool.QueueWorkItem(() => {
                     for (var z = 0; z < Dimensions.z; z++) {
                         for (var x = 0; x < Dimensions.x; x++) {
                             _voxelData[VoxelUtility.VoxelIndex(x, 0, z, in Dimensions)] = VoxelTable.ById(1).GetDataInstance();
-                            _heightMap[VoxelUtility.HeightIndex(x, z, Dimensions.x)] = 1;
+                            _heightMap[VoxelUtility.HeightIndex(x, z, Dimensions.x)] = new HeightData(1, true);
                         }
                     }
                     
@@ -63,7 +64,7 @@ namespace VektorVoxels.Tests {
                     for (var z = 0; z < 3; z++) {
                         for (var x = 0; x < 3; x++) {
                             _voxelData[VoxelUtility.VoxelIndex(x, 4, z, in Dimensions)] = VoxelTable.ById(5).GetDataInstance();
-                            _heightMap[VoxelUtility.HeightIndex(x, z, Dimensions.x)] = 5;
+                            _heightMap[VoxelUtility.HeightIndex(x, z, Dimensions.x)] = new HeightData(5, true);
                         }
                     }
                     
@@ -75,7 +76,7 @@ namespace VektorVoxels.Tests {
                     _mesher.GenerateMeshData(_voxelData, _blockLight, _sunLight, Dimensions);
                     
                     // Set mesh data on main thread once previous routines have completed.
-                    GlobalThreadPool.Instance.QueueOnMain(() => {
+                    GlobalThreadPool.QueueOnMain(() => {
                         _mesher.SetMeshData(ref _mesh);
                         GetComponent<MeshFilter>().mesh = _mesh;
                     });
