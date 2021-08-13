@@ -5,8 +5,10 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VektorVoxels.Chunks;
 using VektorVoxels.Lighting;
 using VektorVoxels.Voxels;
+using VektorVoxels.World;
 
 namespace VektorVoxels.Meshing {
     /// <summary>
@@ -85,12 +87,60 @@ namespace VektorVoxels.Meshing {
             );
         }
 
+        private static void GetNeighborData(in Vector3Int p, in Vector3Int d, in NeighborSet n, NeighborFlags flags, out VoxelData v, out LightData l) {
+            Chunk neighbor;
+            int nvi;
+            bool exists;
+
+            if (p.y < 0 || p.y >= d.y) {
+                v = VoxelData.Null();
+                l = new LightData(Color16.White(), Color16.Clear());
+                return;
+            }
+            
+            if (p.x >= 0 && p.x < d.x && p.z >= d.z) {
+                exists = (flags & NeighborFlags.North) != 0;
+                neighbor = n.North;
+                nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
+            }
+            else if (p.x >= d.x && p.z >= 0 && p.z < d.z) {
+                exists = (flags & NeighborFlags.East) != 0;
+                neighbor = n.East;
+                nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
+            }
+            else if (p.x >= 0 && p.x < d.x && p.z < 0) {
+                exists = (flags & NeighborFlags.South) != 0;
+                neighbor = n.South;
+                nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.z - 1, d);
+            }
+            else {
+                exists = (flags & NeighborFlags.West) != 0;
+                neighbor = n.West;
+                nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
+            }
+
+            if (exists) {
+                v = neighbor.VoxelData[nvi];
+                l = new LightData(neighbor.SunLight[nvi], neighbor.BlockLight[nvi]);
+            }
+            else {
+                v = VoxelData.Null();
+                l = new LightData(Color16.White(), Color16.Clear());
+            }
+        }
+
         /// <summary>
         /// Generates mesh data for a given voxel grid.
         /// Can be called on a separate thread if needed.
         /// Call SetMeshData() once this method completes to apply the new mesh data to a given mesh.
         /// </summary>
-        public void GenerateMeshData(VoxelData[] voxelGrid, Color16[] blockLight, Color16[] sunLight, Vector3Int d, bool smoothLight = true) {
+        public void GenerateMeshData(in Chunk chunk, in NeighborSet neighbors, NeighborFlags neighborFlags) {
+            var voxelGrid = chunk.VoxelData;
+            var sunLight = chunk.SunLight;
+            var blockLight = chunk.BlockLight;
+            var d = WorldManager.Instance.ChunkSize;
+            var smoothLight = WorldManager.Instance.UseSmoothLighting;
+            
             // Clear work buffers.
             _vertices.Clear();
             _trianglesA.Clear();
@@ -118,14 +168,17 @@ namespace VektorVoxels.Meshing {
                             // Voxels outside the current grid will just be null.
                             var np = MeshTables.VoxelNeighbors[i] + vp;
                             var npi = VoxelUtility.VoxelIndex(in np, in d);
-                            var neighbor = InLocalGrid(in np, in d)
-                                ? voxelGrid[npi]
-                                : VoxelData.Null();
                             
-                            // Grab light samples.
-                            var light = InLocalGrid(in np, in d)
-                                ? new LightData(sunLight[npi], blockLight[npi])
-                                : new LightData(Color16.Clear(), Color16.Clear());
+                            VoxelData neighbor;
+                            LightData light;
+
+                            if (InLocalGrid(np, d)) {
+                                neighbor = voxelGrid[npi];
+                                light = new LightData(sunLight[npi], blockLight[npi]);
+                            }
+                            else {
+                                GetNeighborData(np, d, neighbors, neighborFlags, out neighbor, out light);
+                            }
                             
                             // Only need to populate the light work buffer for smooth lighting.
                             if (smoothLight) {
