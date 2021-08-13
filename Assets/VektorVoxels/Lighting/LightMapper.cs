@@ -243,10 +243,10 @@ namespace VektorVoxels.Lighting {
         }
 
         /// <summary>
-        /// Initializes nodes for any sunlight spilling over from neighbors.
+        /// Initializes nodes for any light spilling over from neighbors.
         /// All neighbors should be loaded and have completed the first lighting pass before calling this.
         /// </summary>
-        public void InitializeSunLightFinalPass(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
+        public void InitializeNeighborLightPass(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
             _sunNodes.Clear();
             _blockNodes.Clear();
             var d = WorldManager.Instance.ChunkSize;

@@ -143,6 +143,13 @@ namespace VektorVoxels.Chunks {
         public void OnLightLastPassComplete() {
             _waitingForJob = true;
             GlobalThreadPool.QueueWorkItem(() => {
+                var sw = new Stopwatch();
+                sw.Start();
+                _lightMapper.InitializeNeighborLightPass(this, new NeighborSet(_neighborBuffer), _neighborFlags);
+                _lightMapper.PropagateSunLight(this);
+                _lightMapper.PropagateBlockLight(this);
+                sw.Stop();
+                Debug.Log($"Light Pass 3 (Combined): {sw.ElapsedMilliseconds}ms");
                 _mesher.GenerateMeshData(this, new NeighborSet(_neighborBuffer), _neighborFlags);
                 GlobalThreadPool.QueueOnMain(OnMeshPassComplete);
             });
@@ -195,20 +202,20 @@ namespace VektorVoxels.Chunks {
                     GlobalThreadPool.QueueWorkItem(() => {
                         var sw = new Stopwatch();
                         sw.Start();
-                        _lightMapper.InitializeSunLightFinalPass(this, new NeighborSet(_neighborBuffer), _neighborFlags);
+                        _lightMapper.InitializeNeighborLightPass(this, new NeighborSet(_neighborBuffer), _neighborFlags);
                         _lightMapper.PropagateSunLight(this);
                         _lightMapper.PropagateBlockLight(this);
                         sw.Stop();
-                        Debug.Log($"Light Pass 2 (Sun): {sw.ElapsedMilliseconds}ms");
+                        Debug.Log($"Light Pass 2 (Combined): {sw.ElapsedMilliseconds}ms");
                         
                         GlobalThreadPool.QueueOnMain(OnLightLastPassComplete);
                     });
 
-                    _state = ChunkState.LightFinalPass;
+                    _state = ChunkState.LightSecondPass;
                     
                     break;
                 }
-                case ChunkState.LightFinalPass: {
+                case ChunkState.LightSecondPass: {
                     break;
                 }
                 case ChunkState.Meshing: {

@@ -4,7 +4,7 @@
         TerrainGeneration,      
         LightFirstPass,
         WaitingForNeighbors,
-        LightFinalPass,
+        LightSecondPass,
         Meshing,          
         Ready             
     }
