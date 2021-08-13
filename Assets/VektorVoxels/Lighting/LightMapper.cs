@@ -26,8 +26,8 @@ namespace VektorVoxels.Lighting {
         }
         
         private void ProcessSunColumnFinalPass(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector3Int d) {
-            var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
             // Iterate column starting at the heightmap value.
+            var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
             for (var y = neighborHeight.Value + 1; y >= 0; y--) {
                 var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
                 var voxel = home.VoxelData[vpi];
@@ -89,9 +89,14 @@ namespace VektorVoxels.Lighting {
                 if (hlr >= nlr && hlg >= nlg && hlb >= nlb) {
                     continue;
                 }
+                
+                // Decrement and clamp neighbor light.
+                var dr = Mathf.Clamp(nlr - 1, 0, 15);
+                var dg = Mathf.Clamp(nlg - 1, 0, 15);
+                var db = Mathf.Clamp(nlb - 1, 0, 15);
                     
                 // Place a propagation node with the decremented neighbor values.
-                _blockNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new Color16(nlr - 1, nlg - 1, nlb - 1, 0)));
+                _blockNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new Color16(dr, dg, db, 0)));
             }
         }
         
@@ -254,32 +259,40 @@ namespace VektorVoxels.Lighting {
             // Northern boundary.
             if ((neighborFlags & NeighborFlags.North) != 0) {
                 for (var x = 0; x < d.x; x++) {
+                    neighbors.North.ThreadLock.EnterReadLock();
                     ProcessSunColumnFinalPass(chunk, neighbors.North, new Vector2Int(x, d.z - 1), new Vector2Int(x, 0), d);
                     ProcessBlockColumnFinalPass(chunk, neighbors.North, new Vector2Int(x, d.z - 1), new Vector2Int(x, 0), d);
+                    neighbors.North.ThreadLock.ExitReadLock();
                 }
             }
 
             // Eastern boundary.
             if ((neighborFlags & NeighborFlags.East) != 0) {
                 for (var z = 0; z < d.z; z++) {
+                    neighbors.East.ThreadLock.EnterReadLock();
                     ProcessSunColumnFinalPass(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
                     ProcessBlockColumnFinalPass(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
+                    neighbors.East.ThreadLock.ExitReadLock();
                 }
             }
 
             // Southern boundary.
             if ((neighborFlags & NeighborFlags.South) != 0) {
                 for (var x = 0; x < d.x; x++) {
+                    neighbors.South.ThreadLock.EnterReadLock();
                     ProcessSunColumnFinalPass(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.z - 1), d);
                     ProcessBlockColumnFinalPass(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.z - 1), d);
+                    neighbors.South.ThreadLock.ExitReadLock();
                 }
             }
 
             // Western boundary.
             if ((neighborFlags & NeighborFlags.West) != 0) {
                 for (var z = 0; z < d.z; z++) {
+                    neighbors.West.ThreadLock.EnterReadLock();
                     ProcessSunColumnFinalPass(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
                     ProcessBlockColumnFinalPass(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
+                    neighbors.West.ThreadLock.ExitReadLock();
                 }
             }
         }

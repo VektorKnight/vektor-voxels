@@ -1,10 +1,9 @@
 ﻿namespace VektorVoxels.Chunks {
     public enum ChunkState {
         Uninitialized,    
-        TerrainGeneration,      
-        LightFirstPass,
+        TerrainGeneration,
+        Lighting,
         WaitingForNeighbors,
-        LightSecondPass,
         Meshing,          
         Ready             
     }

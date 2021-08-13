@@ -96,7 +96,15 @@ namespace VektorVoxels.Voxels {
                 11, 
                 "Glowstone", 
                 VoxelFlags.LightSource, 
-                new Color16(15, 15, 15, 0), 
+                new Color16(15, 0, 0, 0), 
+                new Vector2(0, 7), 
+                new Vector2(0, 7)
+            ),
+            new VoxelDefinition(
+                12, 
+                "Bluestone", 
+                VoxelFlags.LightSource, 
+                new Color16(0, 0, 15, 0), 
                 new Vector2(0, 7), 
                 new Vector2(0, 7)
             ),

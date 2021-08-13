@@ -86,7 +86,10 @@ namespace VektorVoxels.Meshing {
                 (byte)(a * 17)
             );
         }
-
+        
+        /// <summary>
+        /// Fetches data from a neighbor depending on position and if the neighbor was provided.
+        /// </summary>
         private static void GetNeighborData(in Vector3Int p, in Vector3Int d, in NeighborSet n, NeighborFlags flags, out VoxelData v, out LightData l) {
             Chunk neighbor;
             int nvi;
@@ -129,12 +132,51 @@ namespace VektorVoxels.Meshing {
             }
         }
 
+        private void AcquireNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
+            if ((flags & NeighborFlags.North) != 0) {
+                neighbors.North.ThreadLock.EnterReadLock();
+            }
+            
+            if ((flags & NeighborFlags.East) != 0) {
+                neighbors.East.ThreadLock.EnterReadLock();
+            }
+            
+            if ((flags & NeighborFlags.South) != 0) {
+                neighbors.South.ThreadLock.EnterReadLock();
+            }
+            
+            if ((flags & NeighborFlags.West) != 0) {
+                neighbors.West.ThreadLock.EnterReadLock();
+            }
+        }
+
+        private void ReleaseNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
+            if ((flags & NeighborFlags.North) != 0) {
+                neighbors.North.ThreadLock.ExitReadLock();
+            }
+            
+            if ((flags & NeighborFlags.East) != 0) {
+                neighbors.East.ThreadLock.ExitReadLock();
+            }
+            
+            if ((flags & NeighborFlags.South) != 0) {
+                neighbors.South.ThreadLock.ExitReadLock();
+            }
+            
+            if ((flags & NeighborFlags.West) != 0) {
+                neighbors.West.ThreadLock.ExitReadLock();
+            }
+        }
+
         /// <summary>
         /// Generates mesh data for a given voxel grid.
         /// Can be called on a separate thread if needed.
         /// Call SetMeshData() once this method completes to apply the new mesh data to a given mesh.
         /// </summary>
-        public void GenerateMeshData(in Chunk chunk, in NeighborSet neighbors, NeighborFlags neighborFlags) {
+        public void GenerateMeshData(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
+            // Acquire read lock on all provided neighbors.
+            AcquireNeighborLocks(in neighbors, neighborFlags);
+            
             var voxelGrid = chunk.VoxelData;
             var sunLight = chunk.SunLight;
             var blockLight = chunk.BlockLight;
@@ -177,7 +219,7 @@ namespace VektorVoxels.Meshing {
                                 light = new LightData(sunLight[npi], blockLight[npi]);
                             }
                             else {
-                                GetNeighborData(np, d, neighbors, neighborFlags, out neighbor, out light);
+                                GetNeighborData(in np, in d, in neighbors, neighborFlags, out neighbor, out light);
                             }
                             
                             // Only need to populate the light work buffer for smooth lighting.
@@ -287,8 +329,14 @@ namespace VektorVoxels.Meshing {
                     }
                 }
             }
+            
+            // Release neighbor locks.
+            ReleaseNeighborLocks(in neighbors, neighborFlags);
         }
         
+        /// <summary>
+        /// Sets generated mesh data to a given mesh.
+        /// </summary>
         public void SetMeshData(ref Mesh mesh) {
             if (mesh == null) {
                 mesh = new Mesh() {
@@ -300,7 +348,7 @@ namespace VektorVoxels.Meshing {
             mesh.SetVertexBufferParams(_vertices.Count, _vertexBufferParams);
             mesh.SetVertexBufferData(_vertices, 0, 0, _vertices.Count);
             mesh.subMeshCount = 2;
-            mesh.SetTriangles(_trianglesA, 0);
+            mesh.SetTriangles(_trianglesA, 0, false);
             mesh.SetTriangles(_trianglesB, 1);
         }
     }
