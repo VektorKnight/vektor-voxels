@@ -3,6 +3,7 @@ using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Meshing;
 using VektorVoxels.Voxels;
+using VektorVoxels.World;
 
 namespace VektorVoxels.Lighting {
     /// <summary>
@@ -23,100 +24,75 @@ namespace VektorVoxels.Lighting {
             _blockNodes = new Stack<LightNode>();
             _sunNodes = new Stack<LightNode>();
         }
-
-        /// <summary>
-        /// Scans the voxel grid and sets any light values above the heightmap to Color16.White().
-        /// propagation nodes are then placed wherever the heightmap value borders open air.
-        /// </summary>
-        public void InitializeSunLightFirstPass(in VoxelData[] voxelData, in HeightData[] heightMap, in Color16[] sunLight, Vector3Int d) {
-            _sunNodes.Clear();
-            var vp = Vector3Int.zero;
-            for (var z = 0; z < d.z; z++) {
-                for (var x = 0; x < d.x; x++) {
-                    // Grab current height data.
-                    ref var heightData = ref heightMap[VoxelUtility.HeightIndex(x, z, d.x)];
+        
+        private void ProcessSunColumnFinalPass(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector3Int d) {
+            var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
+            // Iterate column starting at the heightmap value.
+            for (var y = neighborHeight.Value + 1; y >= 0; y--) {
+                var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
+                var voxel = home.VoxelData[vpi];
                     
-                    // Skip clean height values.
-                    if (!heightData.Dirty) {
-                        continue;
-                    }
+                // Skip if voxel at boundary is opaque.
+                if (voxel.Id != 0 && !voxel.HasFlag(VoxelFlags.AlphaRender)) {
+                    continue;
+                }
                     
-                    // Iterate the entire column.
-                    for (var y = d.y - 1; y >= 0; y--) {
-                        // Grab current voxel and heightmap value.
-                        vp.x = x; vp.y = y; vp.z = z;
-                        var vpi = VoxelUtility.VoxelIndex(x, y, z, in d);
-
-                        // Clear dirty flag.
-                        heightData.Dirty = false;
-                        
-                        // Set any values below the heightmap to zero and continue.
-                        if (y < heightData.Value) {
-                            sunLight[vpi] = Color16.Clear();
-                            continue;
-                        }
-                        
-                        // Set all values above the heightmap to full white.
-                        sunLight[vpi] = new Color16(15, 15, 15, 0);
-                        
-                        // Check neighbors for null/non-opaque blocks below the heightmap.
-                        // Propagation nodes will be queued for these locations.
-                        for (var i = 0; i < 4; i++) {
-                            var np = _sunNeighbors[i] + vp;
-                            var npi = VoxelUtility.VoxelIndex(in np, in d);
-                            
-                            // Skip out of bounds positions.
-                            if (!VoxelUtility.InLocalGrid(in np, in d)) {
-                                continue;
-                            }
-                            
-                            // Grab height value of neighbor position.
-                            ref readonly var neighbor = ref voxelData[npi];
-                            var neighborHeight = heightMap[VoxelUtility.HeightIndex(np.x, np.z, d.x)].Value;
-
-                            // Cavern exists if the neighbor voxel is below the height value at that position and null or translucent.
-                            if (np.y < neighborHeight && (neighbor.Id == 0 || (neighbor.Flags & VoxelFlags.AlphaRender) != 0)) {
-                                // Place a node if any neighbor is below the heightmap and null/translucent.
-                                _sunNodes.Push(new LightNode(vp, new Color16(15, 15, 15, 0)));
-
-                                // Done if any neighbor leads to a cavern.
-                                break;
-                            }
-                        }
-                    }
+                // Grab home and neighbor light values.
+                var homeLight = home.SunLight[vpi];
+                var northLight = neighbor.SunLight[VoxelUtility.VoxelIndex(np.x, y, np.y, d)];
+                    
+                northLight.Decompose(out var nlr, out var nlg, out var nlb, out _);
+                    
+                // Skip if neighbor light is <=1 on all channels.
+                if (nlr <= 1 && nlg <= 1 && nlb <= 1) {
+                    continue;
                 }
-            }
-        }
-
-        /// <summary>
-        /// Scans the voxel grid and generates initial nodes for any light source voxels.
-        /// </summary>
-        public void InitializeBlockLightFirstPass(in VoxelData[] voxelGrid, Vector3Int d) {
-            _blockNodes.Clear();
-            for (var y = 0; y < d.y; y++) {
-                for (var z = 0; z < d.z; z++) {
-                    for (var x = 0; x < d.x; x++) {
-                        ref readonly var voxel = ref voxelGrid[x + d.x * (y + d.y * z)];
-                        if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
-                
-                        _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), voxel.ColorData));
-                    }
+                    
+                homeLight.Decompose(out var hlr, out var hlg, out var hlb, out _);
+                    
+                // Skip if home light is greater or equal on all channels.
+                if (hlr >= nlr && hlg >= nlg && hlb >= nlb) {
+                    continue;
                 }
+                    
+                // Place a propagation node with the decremented neighbor values.
+                _sunNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new Color16(nlr - 1, nlg - 1, nlb - 1, 0)));
             }
         }
         
-        /// <summary>
-        /// Propagates any sunlight nodes.
-        /// </summary>
-        public void PropagateSunLight(in VoxelData[] voxelData, in Color16[] sunLight, Vector3Int d) {
-            PropagateLightNodes(voxelData, sunLight, d, true);
-        }
-        
-        /// <summary>
-        /// Propagates any block light nodes.
-        /// </summary>
-        public void PropagateBlockLight(in VoxelData[] voxelData, in Color16[] blockLight, Vector3Int d) {
-            PropagateLightNodes(voxelData, blockLight, d, false);
+        private void ProcessBlockColumnFinalPass(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector3Int d) {
+            var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
+            // Iterate column starting at the heightmap value.
+            for (var y = d.y - 1; y >= 0; y--) {
+                var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
+                var voxel = home.VoxelData[vpi];
+                    
+                // Skip if voxel at boundary is opaque.
+                if (voxel.Id != 0 && !voxel.HasFlag(VoxelFlags.AlphaRender)) {
+                    continue;
+                }
+                    
+                // Grab home and neighbor light values.
+                var homeLight = home.BlockLight[vpi];
+                var northLight = neighbor.BlockLight[VoxelUtility.VoxelIndex(np.x, y, np.y, d)];
+                    
+                northLight.Decompose(out var nlr, out var nlg, out var nlb, out _);
+                    
+                // Skip if neighbor light is <=1 on all channels.
+                if (nlr <= 1 && nlg <= 1 && nlb <= 1) {
+                    continue;
+                }
+                    
+                homeLight.Decompose(out var hlr, out var hlg, out var hlb, out _);
+                    
+                // Skip if home light is greater or equal on all channels.
+                if (hlr >= nlr && hlg >= nlg && hlb >= nlb) {
+                    continue;
+                }
+                    
+                // Place a propagation node with the decremented neighbor values.
+                _blockNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new Color16(nlr - 1, nlg - 1, nlb - 1, 0)));
+            }
         }
         
         /// <summary>
@@ -196,6 +172,155 @@ namespace VektorVoxels.Lighting {
                     stack.Push(new LightNode(np, new Color16(ar, ag, ab, 0)));
                 }
             }
+        }
+
+        /// <summary>
+        /// Scans the voxel grid and sets any light values above the heightmap to Color16.White().
+        /// propagation nodes are then placed wherever the heightmap value borders open air.
+        /// </summary>
+        public void InitializeSunLightFirstPass(in Chunk chunk) {
+            var voxelData = chunk.VoxelData;
+            var heightMap = chunk.HeightMap;
+            var sunLight = chunk.SunLight;
+            var d = WorldManager.Instance.ChunkSize;
+            _sunNodes.Clear();
+            var vp = Vector3Int.zero;
+            for (var z = 0; z < d.z; z++) {
+                for (var x = 0; x < d.x; x++) {
+                    // Grab current height data.
+                    ref var heightData = ref heightMap[VoxelUtility.HeightIndex(x, z, d.x)];
+                    
+                    // Skip clean height values.
+                    if (!heightData.Dirty) {
+                        continue;
+                    }
+                    
+                    // Iterate the entire column.
+                    for (var y = d.y - 1; y >= 0; y--) {
+                        // Grab current voxel.
+                        vp.x = x; vp.y = y; vp.z = z;
+                        var vpi = VoxelUtility.VoxelIndex(x, y, z, in d);
+
+                        // Clear dirty flag.
+                        heightData.Dirty = false;
+                        
+                        // Set any values below the heightmap to zero and continue.
+                        if (y < heightData.Value) {
+                            sunLight[vpi] = Color16.Clear();
+                            continue;
+                        }
+                        
+                        // Set all values above the heightmap to full white.
+                        sunLight[vpi] = new Color16(15, 15, 15, 0);
+                        
+                        // Check neighbors for null/non-opaque blocks below the heightmap.
+                        // Propagation nodes will be queued for these locations.
+                        for (var i = 0; i < 4; i++) {
+                            var np = _sunNeighbors[i] + vp;
+                            var npi = VoxelUtility.VoxelIndex(in np, in d);
+                            
+                            // Skip out of bounds positions.
+                            if (!VoxelUtility.InLocalGrid(in np, in d)) {
+                                continue;
+                            }
+                            
+                            // Grab height value of neighbor position.
+                            ref readonly var neighbor = ref voxelData[npi];
+                            var neighborHeight = heightMap[VoxelUtility.HeightIndex(np.x, np.z, d.x)].Value;
+
+                            // Node will be placed if the neighbor voxel is below the height value at that position and null or translucent.
+                            if (np.y < neighborHeight && (neighbor.Id == 0 || (neighbor.Flags & VoxelFlags.AlphaRender) != 0)) {
+                                // Place a node if any neighbor is below the heightmap and null/translucent.
+                                _sunNodes.Push(new LightNode(vp, new Color16(15, 15, 15, 0)));
+
+                                // Done if any neighbor leads to a cavern.
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Initializes nodes for any sunlight spilling over from neighbors.
+        /// All neighbors should be loaded and have completed the first lighting pass before calling this.
+        /// </summary>
+        public void InitializeSunLightFinalPass(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
+            _sunNodes.Clear();
+            _blockNodes.Clear();
+            var d = WorldManager.Instance.ChunkSize;
+            
+            // Northern boundary.
+            if ((neighborFlags & NeighborFlags.North) != 0) {
+                for (var x = 0; x < d.x; x++) {
+                    ProcessSunColumnFinalPass(chunk, neighbors.North, new Vector2Int(x, d.z - 1), new Vector2Int(x, 0), d);
+                    ProcessBlockColumnFinalPass(chunk, neighbors.North, new Vector2Int(x, d.z - 1), new Vector2Int(x, 0), d);
+                }
+            }
+
+            // Eastern boundary.
+            if ((neighborFlags & NeighborFlags.East) != 0) {
+                for (var z = 0; z < d.z; z++) {
+                    ProcessSunColumnFinalPass(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
+                    ProcessBlockColumnFinalPass(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
+                }
+            }
+
+            // Southern boundary.
+            if ((neighborFlags & NeighborFlags.South) != 0) {
+                for (var x = 0; x < d.x; x++) {
+                    ProcessSunColumnFinalPass(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.z - 1), d);
+                    ProcessBlockColumnFinalPass(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.z - 1), d);
+                }
+            }
+
+            // Western boundary.
+            if ((neighborFlags & NeighborFlags.West) != 0) {
+                for (var z = 0; z < d.z; z++) {
+                    ProcessSunColumnFinalPass(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
+                    ProcessBlockColumnFinalPass(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Scans the voxel grid and generates initial nodes for any light source voxels.
+        /// </summary>
+        public void InitializeBlockLightFirstPass(in Chunk chunk) {
+            var voxelData = chunk.VoxelData;
+            var d = WorldManager.Instance.ChunkSize;
+            _blockNodes.Clear();
+            for (var y = 0; y < d.y; y++) {
+                for (var z = 0; z < d.z; z++) {
+                    for (var x = 0; x < d.x; x++) {
+                        ref readonly var voxel = ref voxelData[x + d.x * (y + d.y * z)];
+                        if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
+                
+                        _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), voxel.ColorData));
+                    }
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Propagates any sunlight nodes.
+        /// </summary>
+        public void PropagateSunLight(in Chunk chunk) {
+            var voxelData = chunk.VoxelData;
+            var sunLight = chunk.SunLight;
+            var d = WorldManager.Instance.ChunkSize;
+            PropagateLightNodes(voxelData, sunLight, d, true);
+        }
+        
+        /// <summary>
+        /// Propagates any block light nodes.
+        /// </summary>
+        public void PropagateBlockLight(in Chunk chunk) {
+            var voxelData = chunk.VoxelData;
+            var blockLight = chunk.BlockLight;
+            var d = WorldManager.Instance.ChunkSize;
+            PropagateLightNodes(voxelData, blockLight, d, false);
         }
     }
 }

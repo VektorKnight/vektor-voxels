@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.Contracts;
 using System.Runtime.InteropServices;
 using VektorVoxels.Lighting;
 
@@ -17,6 +18,12 @@ namespace VektorVoxels.Voxels {
         // 32 Bits
         public readonly VoxelFlags Flags;   // Voxel configuration flags.
         public readonly Color16 ColorData;  // Color data for lighting.
+        
+        /// <summary>
+        /// A null voxel or "air" in some games.
+        /// Not considered for meshing, collision, or anything else really.
+        /// </summary>
+        public static VoxelData Null() => new VoxelData(0, 0, Color16.Clear());
 
         public VoxelData(uint id, VoxelFlags flags, Color16 colorData) {
             Id = id;
@@ -24,12 +31,9 @@ namespace VektorVoxels.Voxels {
             ColorData = colorData;
         }
         
-        /// <summary>
-        /// A null voxel or "air" in some games.
-        /// Not considered for meshing, collision, or anything else really.
-        /// </summary>
-        public static VoxelData Null() {
-            return new VoxelData(0, 0, Color16.Clear());
+        [Pure]
+        public bool HasFlag(VoxelFlags flag) {
+            return (Flags & flag) != 0;
         }
 
         public bool Equals(VoxelData other) {

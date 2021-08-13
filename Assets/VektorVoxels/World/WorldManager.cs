@@ -19,11 +19,40 @@ namespace VektorVoxels.World {
         [SerializeField] private WorldType _worldType = WorldType.Flat;
         [SerializeField] [Range(0, 128)] private int _seaLevel = 32;
         
+        // Notice: This will only work if the world bounds are known.
+        private Chunk[,] _chunks;
+        
         public Vector3Int ChunkSize => _chunkSize;
         public Vector2Int MaxChunks => _maxChunks;
         public bool UseSmoothLighting => _useSmoothLighting;
         public WorldType WorldType => _worldType;
         public int SeaLevel => _seaLevel;
+
+        public Chunk[,] Chunks => _chunks;
+
+        public bool ChunkInBounds(Vector2Int id) {
+            return id.x >= 0 && id.x < _maxChunks.x &&
+                   id.y >= 0 && id.y < _maxChunks.y;
+        }
+
+        public bool IsChunkLoaded(Vector2Int id) {
+            return _chunks[id.x, id.y] != null;
+        }
+
+        public Vector2Int ChunkPosFromId(Vector2Int id) {
+            return new Vector2Int(id.x - (_maxChunks.x >> 2), id.y - (_maxChunks.y >> 2));
+        }
+
+        public Vector2Int ChunkIdFromPos(Vector2Int pos) {
+            return new Vector2Int(pos.x + (_maxChunks.x >> 2), pos.y + (_maxChunks.y >> 2));
+        }
+
+        public Vector2Int WorldToChunkPos(in Vector3 pos) {
+            return new Vector2Int(
+                Mathf.FloorToInt(pos.x) / _chunkSize.x,
+                Mathf.FloorToInt(pos.z) / _chunkSize.x
+            );
+        }
 
         private void Awake() {
             if (Instance != null) {
@@ -34,12 +63,16 @@ namespace VektorVoxels.World {
 
             Instance = this;
 
+            _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
+
             for (var z = 0; z < _maxChunks.y; z++) {
                 for (var x = 0; x < _maxChunks.x; x++) {
                     var chunkPos = new Vector3Int(x - _maxChunks.x / 2, 0, z - _maxChunks.y / 2);
                     chunkPos *= _chunkSize.x;
+                    
                     var chunk = Instantiate(_chunkPrefab, chunkPos, Quaternion.identity);
-                    chunk.Initialize();
+                    chunk.Initialize(new Vector2Int(x, z));
+                    _chunks[x, z] = chunk;
                 }
             }
         }

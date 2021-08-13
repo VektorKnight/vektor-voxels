@@ -68,12 +68,12 @@ namespace VektorVoxels.Tests {
                         }
                     }
                     
-                    _lightMapper.InitializeSunLightFirstPass(_voxelData, _heightMap, _sunLight, Dimensions);
-                    _lightMapper.InitializeBlockLightFirstPass(_voxelData, Dimensions);
+                    //_lightMapper.InitializeSunLightFirstPass(_voxelData, _heightMap, _sunLight, Dimensions);
+                    //_lightMapper.InitializeBlockLightFirstPass(_voxelData, Dimensions);
                     
-                    _lightMapper.PropagateSunLight(_voxelData, _sunLight, Dimensions);
-                    _lightMapper.PropagateBlockLight(_voxelData, _blockLight, Dimensions);
-                    _mesher.GenerateMeshData(_voxelData, _blockLight, _sunLight, Dimensions);
+                    //_lightMapper.PropagateSunLight(_voxelData, _sunLight, Dimensions);
+                    //_lightMapper.PropagateBlockLight(_voxelData, _blockLight, Dimensions);
+                    //_mesher.GenerateMeshData(_voxelData, _blockLight, _sunLight, Dimensions);
                     
                     // Set mesh data on main thread once previous routines have completed.
                     GlobalThreadPool.QueueOnMain(() => {
