@@ -52,16 +52,6 @@ namespace VektorVoxels.Meshing {
         }
         
         /// <summary>
-        /// Determines if a voxel coordinate is within the local grid.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool InLocalGrid(in Vector3Int p, in Vector3Int d) {
-            return p.x >= 0 && p.x < d.x &&
-                   p.y >= 0 && p.y < d.y &&
-                   p.z >= 0 && p.z < d.z;
-        }
-        
-        /// <summary>
         /// Averages the 4 light values needed for a vertex.
         /// </summary>
         private static Color32 CalculateVertexLight(Color16 c0, Color16 c1, Color16 c2, Color16 c3) {
@@ -90,7 +80,7 @@ namespace VektorVoxels.Meshing {
         /// <summary>
         /// Fetches data from a neighbor depending on position and if the neighbor was provided.
         /// </summary>
-        private static void GetNeighborData(in Vector3Int p, in Vector3Int d, in NeighborSet n, NeighborFlags flags, out VoxelData v, out LightData l) {
+        private static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, NeighborFlags flags, out VoxelData v, out LightData l) {
             Chunk neighbor;
             int nvi;
             bool exists;
@@ -101,12 +91,12 @@ namespace VektorVoxels.Meshing {
                 return;
             }
             
-            if (p.x >= 0 && p.x < d.x && p.z >= d.z) {
+            if (p.x >= 0 && p.x < d.x && p.z >= d.x) {
                 exists = (flags & NeighborFlags.North) != 0;
                 neighbor = n.North;
                 nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
             }
-            else if (p.x >= d.x && p.z >= 0 && p.z < d.z) {
+            else if (p.x >= d.x && p.z >= 0 && p.z < d.x) {
                 exists = (flags & NeighborFlags.East) != 0;
                 neighbor = n.East;
                 nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
@@ -114,7 +104,7 @@ namespace VektorVoxels.Meshing {
             else if (p.x >= 0 && p.x < d.x && p.z < 0) {
                 exists = (flags & NeighborFlags.South) != 0;
                 neighbor = n.South;
-                nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.z - 1, d);
+                nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.x - 1, d);
             }
             else {
                 exists = (flags & NeighborFlags.West) != 0;
@@ -194,11 +184,11 @@ namespace VektorVoxels.Meshing {
             // Ex: np, npi -> 'Neighbor Position', 'Neighbor Position Index'.
             var vp = Vector3Int.zero;
             for (var y = 0; y < d.y; y++) {
-                for (var z = 0; z < d.z; z++) {
+                for (var z = 0; z < d.x; z++) {
                     for (var x = 0; x < d.x; x++) {
                         // Grab current voxel and light data.
                         vp.x = x; vp.y = y; vp.z = z;
-                        var voxel = voxelGrid[VoxelUtility.VoxelIndex(in vp, in d)];
+                        var voxel = voxelGrid[VoxelUtility.VoxelIndex(in vp, d)];
 
                         // Skip if voxel is null.
                         if (voxel.Id == 0) continue;
@@ -209,12 +199,12 @@ namespace VektorVoxels.Meshing {
                             // Grab neighbor voxel depending on locality.
                             // Voxels outside the current grid will just be null.
                             var np = MeshTables.VoxelNeighbors[i] + vp;
-                            var npi = VoxelUtility.VoxelIndex(in np, in d);
+                            var npi = VoxelUtility.VoxelIndex(in np, d);
                             
                             VoxelData neighbor;
                             LightData light;
 
-                            if (InLocalGrid(np, d)) {
+                            if (VoxelUtility.InLocalGrid(np, d)) {
                                 neighbor = voxelGrid[npi];
                                 light = new LightData(sunLight[npi], blockLight[npi]);
                             }
@@ -226,9 +216,9 @@ namespace VektorVoxels.Meshing {
                             if (smoothLight) {
                                 for (var l = 0; l < 8; l++) {
                                     var lnp = MeshTables.LightNeighbors[i][l] + np;
-                                    var lni = VoxelUtility.VoxelIndex(in lnp, in d);
+                                    var lni = VoxelUtility.VoxelIndex(in lnp, d);
                                     
-                                    _lightWorkBuffer[l] = InLocalGrid(in lnp, in d)
+                                    _lightWorkBuffer[l] = VoxelUtility.InLocalGrid(lnp, d)
                                         ? new LightData(sunLight[lni], blockLight[lni])
                                         : new LightData(Color16.Clear(), Color16.Clear());
                                 }

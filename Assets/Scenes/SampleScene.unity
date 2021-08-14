@@ -474,7 +474,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _chunkSize: {x: 16, y: 256, z: 16}
-  _maxChunks: {x: 16, y: 16}
+  _maxChunks: {x: 8, y: 8}
   _useSmoothLighting: 0
   _chunkPrefab: {fileID: 3355102642434385408, guid: b892d8b0ef44ad844afcb94d26bfc045, type: 3}
   _worldType: 0

@@ -1,9 +1,9 @@
 ﻿namespace VektorVoxels.Chunks {
     public struct HeightData {
-        public int Value;
+        public uint Value;
         public bool Dirty;
 
-        public HeightData(int value, bool dirty) {
+        public HeightData(uint value, bool dirty) {
             Value = value;
             Dirty = dirty;
         }

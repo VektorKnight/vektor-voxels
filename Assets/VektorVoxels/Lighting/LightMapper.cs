@@ -7,7 +7,7 @@ using VektorVoxels.World;
 
 namespace VektorVoxels.Lighting {
     /// <summary>
-    /// Performs lightmapping for a voxel grid.
+    /// Performs lightmapping on chunks.
     /// </summary>
     public sealed class LightMapper {
         private static readonly Vector3Int[] _sunNeighbors = {
@@ -25,10 +25,46 @@ namespace VektorVoxels.Lighting {
             _sunNodes = new Stack<LightNode>();
         }
         
-        private void ProcessSunColumnFinalPass(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector3Int d) {
+        private void AcquireNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
+            if ((flags & NeighborFlags.North) != 0) {
+                neighbors.North.ThreadLock.EnterReadLock();
+            }
+            
+            if ((flags & NeighborFlags.East) != 0) {
+                neighbors.East.ThreadLock.EnterReadLock();
+            }
+            
+            if ((flags & NeighborFlags.South) != 0) {
+                neighbors.South.ThreadLock.EnterReadLock();
+            }
+            
+            if ((flags & NeighborFlags.West) != 0) {
+                neighbors.West.ThreadLock.EnterReadLock();
+            }
+        }
+
+        private void ReleaseNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
+            if ((flags & NeighborFlags.North) != 0) {
+                neighbors.North.ThreadLock.ExitReadLock();
+            }
+            
+            if ((flags & NeighborFlags.East) != 0) {
+                neighbors.East.ThreadLock.ExitReadLock();
+            }
+            
+            if ((flags & NeighborFlags.South) != 0) {
+                neighbors.South.ThreadLock.ExitReadLock();
+            }
+            
+            if ((flags & NeighborFlags.West) != 0) {
+                neighbors.West.ThreadLock.ExitReadLock();
+            }
+        }
+        
+        private void ProcessNeighborBoundarySun(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
             // Iterate column starting at the heightmap value.
             var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
-            for (var y = neighborHeight.Value + 1; y >= 0; y--) {
+            for (var y = (int)(neighborHeight.Value + 1); y >= 0; y--) {
                 var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
                 var voxel = home.VoxelData[vpi];
                     
@@ -60,9 +96,9 @@ namespace VektorVoxels.Lighting {
             }
         }
         
-        private void ProcessBlockColumnFinalPass(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector3Int d) {
+        private void ProcessNeighborBoundaryBlock(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
             var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
-            // Iterate column starting at the heightmap value.
+            // Iterate column starting at the top.
             for (var y = d.y - 1; y >= 0; y--) {
                 var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
                 var voxel = home.VoxelData[vpi];
@@ -103,12 +139,12 @@ namespace VektorVoxels.Lighting {
         /// <summary>
         /// Performs light propagation on a given voxel data set and lightmap.
         /// </summary>
-        private void PropagateLightNodes(in VoxelData[] voxelData, in Color16[] lightMap, Vector3Int d, bool sun) {
+        private void PropagateLightNodes(in VoxelData[] voxelData, in Color16[] lightMap, Vector2Int d, bool sun) {
             var stack = sun ? _sunNodes : _blockNodes;
             while (stack.Count > 0) {
                 // Grab node and sample lightmap at the node position.
                 var node = stack.Pop();
-                var cpi = VoxelUtility.VoxelIndex(in node.Position, in d);
+                var cpi = VoxelUtility.VoxelIndex(in node.Position, d);
                 var current = lightMap[cpi];
 
                 // Write max of the current light and node values.
@@ -128,9 +164,9 @@ namespace VektorVoxels.Lighting {
                     // Grab neighbor voxel and light depending on locality.
                     // Voxels outside the current grid will be skipped.
                     var np = MeshTables.VoxelNeighbors[i] + node.Position;
-                    var npi = VoxelUtility.VoxelIndex(in np, in d);
+                    var npi = VoxelUtility.VoxelIndex(in np, d);
                     
-                    if (!VoxelUtility.InLocalGrid(in np, in d)) {
+                    if (!VoxelUtility.InLocalGrid(np, d)) {
                         continue;
                     }
                     
@@ -190,11 +226,11 @@ namespace VektorVoxels.Lighting {
             var d = WorldManager.Instance.ChunkSize;
             _sunNodes.Clear();
             var vp = Vector3Int.zero;
-            for (var z = 0; z < d.z; z++) {
+            for (var z = 0; z < d.x; z++) {
                 for (var x = 0; x < d.x; x++) {
                     // Grab current height data.
                     ref var heightData = ref heightMap[VoxelUtility.HeightIndex(x, z, d.x)];
-                    
+
                     // Skip clean height values.
                     if (!heightData.Dirty) {
                         continue;
@@ -204,7 +240,7 @@ namespace VektorVoxels.Lighting {
                     for (var y = d.y - 1; y >= 0; y--) {
                         // Grab current voxel.
                         vp.x = x; vp.y = y; vp.z = z;
-                        var vpi = VoxelUtility.VoxelIndex(x, y, z, in d);
+                        var vpi = VoxelUtility.VoxelIndex(x, y, z, d);
 
                         // Clear dirty flag.
                         heightData.Dirty = false;
@@ -222,10 +258,10 @@ namespace VektorVoxels.Lighting {
                         // Propagation nodes will be queued for these locations.
                         for (var i = 0; i < 4; i++) {
                             var np = _sunNeighbors[i] + vp;
-                            var npi = VoxelUtility.VoxelIndex(in np, in d);
+                            var npi = VoxelUtility.VoxelIndex(in np, d);
                             
                             // Skip out of bounds positions.
-                            if (!VoxelUtility.InLocalGrid(in np, in d)) {
+                            if (!VoxelUtility.InLocalGrid(np, d)) {
                                 continue;
                             }
                             
@@ -252,49 +288,49 @@ namespace VektorVoxels.Lighting {
         /// All neighbors should be loaded and have completed the first lighting pass before calling this.
         /// </summary>
         public void InitializeNeighborLightPass(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
+            AcquireNeighborLocks(in neighbors, neighborFlags);
+            
             _sunNodes.Clear();
             _blockNodes.Clear();
             var d = WorldManager.Instance.ChunkSize;
-            
+
+            for (var i = 0; i < d.x; i++) {
+                
+            }
+
             // Northern boundary.
             if ((neighborFlags & NeighborFlags.North) != 0) {
                 for (var x = 0; x < d.x; x++) {
-                    neighbors.North.ThreadLock.EnterReadLock();
-                    ProcessSunColumnFinalPass(chunk, neighbors.North, new Vector2Int(x, d.z - 1), new Vector2Int(x, 0), d);
-                    ProcessBlockColumnFinalPass(chunk, neighbors.North, new Vector2Int(x, d.z - 1), new Vector2Int(x, 0), d);
-                    neighbors.North.ThreadLock.ExitReadLock();
+                    ProcessNeighborBoundarySun(chunk, neighbors.North, new Vector2Int(x, d.x - 1), new Vector2Int(x, 0), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.North, new Vector2Int(x, d.x - 1), new Vector2Int(x, 0), d);
                 }
             }
 
             // Eastern boundary.
             if ((neighborFlags & NeighborFlags.East) != 0) {
-                for (var z = 0; z < d.z; z++) {
-                    neighbors.East.ThreadLock.EnterReadLock();
-                    ProcessSunColumnFinalPass(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
-                    ProcessBlockColumnFinalPass(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
-                    neighbors.East.ThreadLock.ExitReadLock();
+                for (var z = 0; z < d.x; z++) {
+                    ProcessNeighborBoundarySun(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
                 }
             }
 
             // Southern boundary.
             if ((neighborFlags & NeighborFlags.South) != 0) {
                 for (var x = 0; x < d.x; x++) {
-                    neighbors.South.ThreadLock.EnterReadLock();
-                    ProcessSunColumnFinalPass(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.z - 1), d);
-                    ProcessBlockColumnFinalPass(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.z - 1), d);
-                    neighbors.South.ThreadLock.ExitReadLock();
+                    ProcessNeighborBoundarySun(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.x - 1), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.x - 1), d);
                 }
             }
 
             // Western boundary.
             if ((neighborFlags & NeighborFlags.West) != 0) {
-                for (var z = 0; z < d.z; z++) {
-                    neighbors.West.ThreadLock.EnterReadLock();
-                    ProcessSunColumnFinalPass(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
-                    ProcessBlockColumnFinalPass(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
-                    neighbors.West.ThreadLock.ExitReadLock();
+                for (var z = 0; z < d.x; z++) {
+                    ProcessNeighborBoundarySun(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
                 }
             }
+            
+            ReleaseNeighborLocks(in neighbors, neighborFlags);
         }
 
         /// <summary>
@@ -305,7 +341,7 @@ namespace VektorVoxels.Lighting {
             var d = WorldManager.Instance.ChunkSize;
             _blockNodes.Clear();
             for (var y = 0; y < d.y; y++) {
-                for (var z = 0; z < d.z; z++) {
+                for (var z = 0; z < d.x; z++) {
                     for (var x = 0; x < d.x; x++) {
                         ref readonly var voxel = ref voxelData[x + d.x * (y + d.y * z)];
                         if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
