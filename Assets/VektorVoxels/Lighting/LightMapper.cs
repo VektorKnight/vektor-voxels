@@ -25,38 +25,38 @@ namespace VektorVoxels.Lighting {
             _sunNodes = new Stack<LightNode>();
         }
         
-        private void AcquireNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
-            if ((flags & NeighborFlags.North) != 0) {
+        private void AcquireNeighborLocks(in NeighborSet neighbors) {
+            if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.EnterReadLock();
             }
             
-            if ((flags & NeighborFlags.East) != 0) {
+            if ((neighbors.Flags & NeighborFlags.East) != 0) {
                 neighbors.East.ThreadLock.EnterReadLock();
             }
             
-            if ((flags & NeighborFlags.South) != 0) {
+            if ((neighbors.Flags & NeighborFlags.South) != 0) {
                 neighbors.South.ThreadLock.EnterReadLock();
             }
             
-            if ((flags & NeighborFlags.West) != 0) {
+            if ((neighbors.Flags & NeighborFlags.West) != 0) {
                 neighbors.West.ThreadLock.EnterReadLock();
             }
         }
 
-        private void ReleaseNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
-            if ((flags & NeighborFlags.North) != 0) {
+        private void ReleaseNeighborLocks(in NeighborSet neighbors) {
+            if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.ExitReadLock();
             }
             
-            if ((flags & NeighborFlags.East) != 0) {
+            if ((neighbors.Flags & NeighborFlags.East) != 0) {
                 neighbors.East.ThreadLock.ExitReadLock();
             }
             
-            if ((flags & NeighborFlags.South) != 0) {
+            if ((neighbors.Flags & NeighborFlags.South) != 0) {
                 neighbors.South.ThreadLock.ExitReadLock();
             }
             
-            if ((flags & NeighborFlags.West) != 0) {
+            if ((neighbors.Flags & NeighborFlags.West) != 0) {
                 neighbors.West.ThreadLock.ExitReadLock();
             }
         }
@@ -287,50 +287,41 @@ namespace VektorVoxels.Lighting {
         /// Initializes nodes for any light spilling over from neighbors.
         /// All neighbors should be loaded and have completed the first lighting pass before calling this.
         /// </summary>
-        public void InitializeNeighborLightPass(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
-            AcquireNeighborLocks(in neighbors, neighborFlags);
+        public void InitializeNeighborLightPass(in Chunk chunk, NeighborSet neighbors) {
+            AcquireNeighborLocks(in neighbors);
             
             _sunNodes.Clear();
             _blockNodes.Clear();
             var d = WorldManager.Instance.ChunkSize;
-
-            for (var i = 0; i < d.x; i++) {
-                
-            }
-
-            // Northern boundary.
-            if ((neighborFlags & NeighborFlags.North) != 0) {
-                for (var x = 0; x < d.x; x++) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.North, new Vector2Int(x, d.x - 1), new Vector2Int(x, 0), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.North, new Vector2Int(x, d.x - 1), new Vector2Int(x, 0), d);
-                }
-            }
-
-            // Eastern boundary.
-            if ((neighborFlags & NeighborFlags.East) != 0) {
-                for (var z = 0; z < d.x; z++) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.East, new Vector2Int(d.x - 1, z), new Vector2Int(0, z), d);
-                }
-            }
-
-            // Southern boundary.
-            if ((neighborFlags & NeighborFlags.South) != 0) {
-                for (var x = 0; x < d.x; x++) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.x - 1), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.South, new Vector2Int(x, 0), new Vector2Int(x, d.x - 1), d);
-                }
-            }
-
-            // Western boundary.
-            if ((neighborFlags & NeighborFlags.West) != 0) {
-                for (var z = 0; z < d.x; z++) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.West, new Vector2Int(0, z), new Vector2Int(d.x - 1, z), d);
-                }
-            }
             
-            ReleaseNeighborLocks(in neighbors, neighborFlags);
+            // process columns along each neighbor boundary.
+            for (var i = 0; i < d.x; i++) {
+                // Northern boundary.
+                if ((neighbors.Flags & NeighborFlags.North) != 0) {
+                    ProcessNeighborBoundarySun(chunk, neighbors.North, new Vector2Int(i, d.x - 1), new Vector2Int(i, 0), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.North, new Vector2Int(i, d.x - 1), new Vector2Int(i, 0), d);
+                }
+
+                // Eastern boundary.
+                if ((neighbors.Flags & NeighborFlags.East) != 0) {
+                    ProcessNeighborBoundarySun(chunk, neighbors.East, new Vector2Int(d.x - 1, i), new Vector2Int(0, i), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.East, new Vector2Int(d.x - 1, i), new Vector2Int(0, i), d);
+                }
+
+                // Southern boundary.
+                if ((neighbors.Flags & NeighborFlags.South) != 0) {
+                    ProcessNeighborBoundarySun(chunk, neighbors.South, new Vector2Int(i, 0), new Vector2Int(i, d.x - 1), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.South, new Vector2Int(i, 0), new Vector2Int(i, d.x - 1), d);
+                }
+
+                // Western boundary.
+                if ((neighbors.Flags & NeighborFlags.West) != 0) {
+                    ProcessNeighborBoundarySun(chunk, neighbors.West, new Vector2Int(0, i), new Vector2Int(d.x - 1, i), d);
+                    ProcessNeighborBoundaryBlock(chunk, neighbors.West, new Vector2Int(0, i), new Vector2Int(d.x - 1, i), d);
+                }
+            }
+
+            ReleaseNeighborLocks(in neighbors);
         }
 
         /// <summary>

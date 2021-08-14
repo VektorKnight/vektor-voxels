@@ -17,16 +17,22 @@ namespace VektorVoxels.World {
         public static WorldManager Instance { get; private set; }
 
         [Header("Chunk Config")] [SerializeField] private Vector2Int _chunkSize = new Vector2Int(16, 256);
-        [SerializeField] private Vector2Int _maxChunks = new Vector2Int(16, 16);
+        [SerializeField] private Vector2Int _maxChunks = new Vector2Int(64, 64);
         [SerializeField] private bool _useSmoothLighting = true;
         [SerializeField] private Chunk _chunkPrefab;
 
-        [Header("World Config")] 
+        [Header("World Config")]
         [SerializeField] private WorldType _worldType = WorldType.Flat;
         [SerializeField] [Range(0, 128)] private int _seaLevel = 32;
+        [SerializeField] [Range(1, 32)] private int _viewDistance = 10;
+        [SerializeField] private Transform _loadTransform;
         
-        // Notice: This will only work if the world bounds are known.
         private Chunk[,] _chunks;
+        private LoadRect _loadRect;
+        
+        // Events.
+        public delegate void WorldEventHandler(WorldEvent e);
+        public static event WorldEventHandler OnWorldEvent;
         
         public Vector2Int ChunkSize => _chunkSize;
         public Vector2Int MaxChunks => _maxChunks;
@@ -35,22 +41,39 @@ namespace VektorVoxels.World {
         public int SeaLevel => _seaLevel;
 
         public Chunk[,] Chunks => _chunks;
-
-        public bool ChunkInBounds(Vector2Int id) {
+        public LoadRect LoadRect => _loadRect;
+        
+        /// <summary>
+        /// Checks if a chunk ID is within the bounds of the world.
+        /// </summary>
+        public bool IsChunkInBounds(Vector2Int id) {
             return id.x >= 0 && id.x < _maxChunks.x &&
                    id.y >= 0 && id.y < _maxChunks.y;
         }
-
+        
+        /// <summary>
+        /// Checks if a chunk with the given ID is loaded.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public bool IsChunkLoaded(Vector2Int id) {
             return _chunks[id.x, id.y] != null;
         }
+        
+        /// <summary>
+        /// Checks if a chunk ID is within the current view distance.
+        /// </summary>
+        public bool IsChunkInView(Vector2Int id) {
+            var chunkPos = ChunkPosFromId(id);
+            return _loadRect.ContainsChunk(chunkPos);
+        }
 
         public Vector2Int ChunkPosFromId(Vector2Int id) {
-            return new Vector2Int(id.x - (_maxChunks.x >> 2), id.y - (_maxChunks.y >> 2));
+            return new Vector2Int(id.x - (_maxChunks.x >> 1), id.y - (_maxChunks.y >> 1));
         }
 
         public Vector2Int ChunkIdFromPos(Vector2Int pos) {
-            return new Vector2Int(pos.x + (_maxChunks.x >> 2), pos.y + (_maxChunks.y >> 2));
+            return new Vector2Int(pos.x + _maxChunks.x / 2, pos.y + _maxChunks.y / 2);
         }
 
         public Vector2Int WorldToChunkPos(in Vector3 pos) {
@@ -68,19 +91,64 @@ namespace VektorVoxels.World {
             }
 
             Instance = this;
-
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
 
-            for (var z = 0; z < _maxChunks.y; z++) {
+            _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);
+
+            /*for (var z = 0; z < _maxChunks.y; z++) {
                 for (var x = 0; x < _maxChunks.x; x++) {
                     var chunkPos = new Vector3Int(x - _maxChunks.x / 2, 0, z - _maxChunks.y / 2);
                     chunkPos *= _chunkSize.x;
                     
                     var chunk = Instantiate(_chunkPrefab, chunkPos, Quaternion.identity);
+                    chunk.transform.SetParent(transform);
                     chunk.Initialize(new Vector2Int(x, z));
+                    chunk.name = $"Chunk[{x},{z}]";
                     _chunks[x, z] = chunk;
                 }
+            }*/
+        }
+
+        private void Update() {
+            if (_loadTransform == null) {
+                return;
             }
+
+            var loadPosition = _loadTransform.position;
+            var loadOrigin = new Vector2Int(
+                Mathf.RoundToInt(loadPosition.x / _chunkSize.x),
+                Mathf.RoundToInt(loadPosition.z / _chunkSize.x)
+            );
+
+            var loadPrev = _loadRect;
+            _loadRect = new LoadRect(loadOrigin, _viewDistance);
+
+            if (!_loadRect.Equals(loadPrev)) {
+                OnWorldEvent?.Invoke(WorldEvent.LoadRegionChanged);
+            }
+
+            for (var z = loadOrigin.y - _viewDistance; z < loadOrigin.y + _viewDistance; z++) {
+                for (var x = loadOrigin.x - _viewDistance; x < loadOrigin.x + _viewDistance; x++) {
+                    var chunkId = ChunkIdFromPos(new Vector2Int(x, z));
+                    var chunkPos = ChunkPosFromId(chunkId) * _chunkSize.x;
+
+                    if (!IsChunkInBounds(chunkId) || IsChunkLoaded(chunkId)) continue;
+
+                    var chunk = Instantiate(_chunkPrefab, new Vector3(chunkPos.x, 0, chunkPos.y), Quaternion.identity);
+                    chunk.transform.SetParent(transform);
+                    chunk.Initialize(chunkId);
+                    //chunk.name = $"Chunk[{chunkId.x},{chunkId.y}]";
+                    _chunks[chunkId.x, chunkId.y] = chunk;
+                }
+            }
+        }
+
+        private void OnDrawGizmos() {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(new Vector3(_loadRect.Position.x, 0, _loadRect.Position.y) * _chunkSize.x, new Vector3(_viewDistance * 2, 1, _viewDistance * 2) * _chunkSize.x);
+            
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireCube(Vector3.zero, new Vector3(_maxChunks.x, 16, _maxChunks.y) * _chunkSize.x);
         }
     }
 }

@@ -5,6 +5,7 @@
         Lighting,
         WaitingForNeighbors,
         Meshing,          
-        Ready             
+        Ready,
+        Inactive
     }
 }
