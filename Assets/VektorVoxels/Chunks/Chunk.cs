@@ -100,11 +100,11 @@ namespace VektorVoxels.Chunks {
             
             // World data.
             var dimensions = WorldManager.Instance.ChunkSize;
-            var dataSize = dimensions.x * dimensions.y * dimensions.z;
+            var dataSize = dimensions.x * dimensions.y * dimensions.x;
             _voxelData = new VoxelData[dataSize];
             _sunLight = new Color16[dataSize];
             _blockLight = new Color16[dataSize];
-            _heightMap = new HeightData[dimensions.x * dimensions.z];
+            _heightMap = new HeightData[dimensions.x * dimensions.x];
             
             // Thread safety.
             _threadLock = new ReaderWriterLockSlim();
@@ -119,15 +119,15 @@ namespace VektorVoxels.Chunks {
                 // TODO: Actual generation code or class.
                 _threadLock.EnterWriteLock();
                 var dimensions = WorldManager.Instance.ChunkSize;
-                for (var z = 0; z < dimensions.z; z++) {
+                for (var z = 0; z < dimensions.x; z++) {
                     for (var x = 0; x < dimensions.x; x++) {
-                        _voxelData[VoxelUtility.VoxelIndex(x, 0, z, in dimensions)] = VoxelTable.ById(1).GetDataInstance();
+                        _voxelData[VoxelUtility.VoxelIndex(x, 0, z, dimensions)] = VoxelTable.ById(1).GetDataInstance();
                         _heightMap[VoxelUtility.HeightIndex(x, z, dimensions.x)] = new HeightData(0, true);
                     }
                 }
 
                 if (true) {
-                    _voxelData[VoxelUtility.VoxelIndex(4, 1, 6, in dimensions)] = VoxelTable.ById((uint)(11 + (_chunkId.x % 2))).GetDataInstance();
+                    _voxelData[VoxelUtility.VoxelIndex(4, 1, 6, dimensions)] = VoxelTable.ById((uint)(11 + (_chunkId.x % 2))).GetDataInstance();
                     _heightMap[VoxelUtility.HeightIndex(4, 6, dimensions.x)] = new HeightData(1, true);
                 }
                 _threadLock.ExitWriteLock();

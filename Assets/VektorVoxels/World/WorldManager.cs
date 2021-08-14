@@ -5,12 +5,18 @@ using VektorVoxels.Chunks;
 namespace VektorVoxels.World {
     /// <summary>
     /// Mostly handles chunks and loading/unloading.
+    /// Designed to handle a finite world where all chunks are resident in memory.
+    /// This is just enough to satisfy the purposes of a demo.
+    ///
+    /// Technically any chunk size is "supported" but is largely untested.
+    /// Anything larger than 4 in each dimension should work fine and it is recommended to keep X == Z.
+    ///
+    /// Due to Unity's 32-bit transform, you should never define a world larger than ~20km in X or Z.
     /// </summary>
     public class WorldManager : MonoBehaviour {
         public static WorldManager Instance { get; private set; }
 
-        [Header("Chunk Config")] 
-        [SerializeField] private Vector3Int _chunkSize = new Vector3Int(16, 256, 16);
+        [Header("Chunk Config")] [SerializeField] private Vector2Int _chunkSize = new Vector2Int(16, 256);
         [SerializeField] private Vector2Int _maxChunks = new Vector2Int(16, 16);
         [SerializeField] private bool _useSmoothLighting = true;
         [SerializeField] private Chunk _chunkPrefab;
@@ -22,7 +28,7 @@ namespace VektorVoxels.World {
         // Notice: This will only work if the world bounds are known.
         private Chunk[,] _chunks;
         
-        public Vector3Int ChunkSize => _chunkSize;
+        public Vector2Int ChunkSize => _chunkSize;
         public Vector2Int MaxChunks => _maxChunks;
         public bool UseSmoothLighting => _useSmoothLighting;
         public WorldType WorldType => _worldType;
