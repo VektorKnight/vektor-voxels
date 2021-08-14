@@ -80,11 +80,11 @@ namespace VektorVoxels.Meshing {
         /// <summary>
         /// Fetches data from a neighbor depending on position and if the neighbor was provided.
         /// </summary>
-        private static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, NeighborFlags flags, out VoxelData v, out LightData l) {
+        private static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, out VoxelData v, out LightData l) {
             Chunk neighbor;
             int nvi;
             bool exists;
-
+            
             if (p.y < 0 || p.y >= d.y) {
                 v = VoxelData.Null();
                 l = new LightData(Color16.White(), Color16.Clear());
@@ -92,22 +92,22 @@ namespace VektorVoxels.Meshing {
             }
             
             if (p.x >= 0 && p.x < d.x && p.z >= d.x) {
-                exists = (flags & NeighborFlags.North) != 0;
+                exists = (n.Flags & NeighborFlags.North) != 0;
                 neighbor = n.North;
                 nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
             }
             else if (p.x >= d.x && p.z >= 0 && p.z < d.x) {
-                exists = (flags & NeighborFlags.East) != 0;
+                exists = (n.Flags & NeighborFlags.East) != 0;
                 neighbor = n.East;
                 nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
             }
             else if (p.x >= 0 && p.x < d.x && p.z < 0) {
-                exists = (flags & NeighborFlags.South) != 0;
+                exists = (n.Flags & NeighborFlags.South) != 0;
                 neighbor = n.South;
                 nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.x - 1, d);
             }
             else {
-                exists = (flags & NeighborFlags.West) != 0;
+                exists = (n.Flags & NeighborFlags.West) != 0;
                 neighbor = n.West;
                 nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
             }
@@ -122,38 +122,38 @@ namespace VektorVoxels.Meshing {
             }
         }
 
-        private void AcquireNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
-            if ((flags & NeighborFlags.North) != 0) {
+        private void AcquireNeighborLocks(in NeighborSet neighbors) {
+            if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.EnterReadLock();
             }
             
-            if ((flags & NeighborFlags.East) != 0) {
+            if ((neighbors.Flags & NeighborFlags.East) != 0) {
                 neighbors.East.ThreadLock.EnterReadLock();
             }
             
-            if ((flags & NeighborFlags.South) != 0) {
+            if ((neighbors.Flags & NeighborFlags.South) != 0) {
                 neighbors.South.ThreadLock.EnterReadLock();
             }
             
-            if ((flags & NeighborFlags.West) != 0) {
+            if ((neighbors.Flags & NeighborFlags.West) != 0) {
                 neighbors.West.ThreadLock.EnterReadLock();
             }
         }
 
-        private void ReleaseNeighborLocks(in NeighborSet neighbors, NeighborFlags flags) {
-            if ((flags & NeighborFlags.North) != 0) {
+        private void ReleaseNeighborLocks(in NeighborSet neighbors) {
+            if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.ExitReadLock();
             }
             
-            if ((flags & NeighborFlags.East) != 0) {
+            if ((neighbors.Flags & NeighborFlags.East) != 0) {
                 neighbors.East.ThreadLock.ExitReadLock();
             }
             
-            if ((flags & NeighborFlags.South) != 0) {
+            if ((neighbors.Flags & NeighborFlags.South) != 0) {
                 neighbors.South.ThreadLock.ExitReadLock();
             }
             
-            if ((flags & NeighborFlags.West) != 0) {
+            if ((neighbors.Flags & NeighborFlags.West) != 0) {
                 neighbors.West.ThreadLock.ExitReadLock();
             }
         }
@@ -163,9 +163,9 @@ namespace VektorVoxels.Meshing {
         /// Can be called on a separate thread if needed.
         /// Call SetMeshData() once this method completes to apply the new mesh data to a given mesh.
         /// </summary>
-        public void GenerateMeshData(in Chunk chunk, NeighborSet neighbors, NeighborFlags neighborFlags) {
+        public void GenerateMeshData(in Chunk chunk, NeighborSet neighbors) {
             // Acquire read lock on all provided neighbors.
-            AcquireNeighborLocks(in neighbors, neighborFlags);
+            AcquireNeighborLocks(in neighbors);
             
             var voxelGrid = chunk.VoxelData;
             var sunLight = chunk.SunLight;
@@ -209,7 +209,7 @@ namespace VektorVoxels.Meshing {
                                 light = new LightData(sunLight[npi], blockLight[npi]);
                             }
                             else {
-                                GetNeighborData(in np, in d, in neighbors, neighborFlags, out neighbor, out light);
+                                GetNeighborData(in np, in d, in neighbors, out neighbor, out light);
                             }
                             
                             // Only need to populate the light work buffer for smooth lighting.
@@ -239,7 +239,6 @@ namespace VektorVoxels.Meshing {
                                 ? VoxelTable.ById(voxel.Id).AtlasA * TEX_UV_WIDTH
                                 : VoxelTable.ById(voxel.Id).AtlasB * TEX_UV_WIDTH;
                             
-
                             _uvWorkBuffer[0] = new Vector2(origin.x, origin.y + TEX_UV_WIDTH);
                             _uvWorkBuffer[1] = new Vector2(origin.x, origin.y);
                             _uvWorkBuffer[2] = new Vector2(origin.x + TEX_UV_WIDTH, origin.y);
@@ -321,7 +320,7 @@ namespace VektorVoxels.Meshing {
             }
             
             // Release neighbor locks.
-            ReleaseNeighborLocks(in neighbors, neighborFlags);
+            ReleaseNeighborLocks(in neighbors);
         }
         
         /// <summary>

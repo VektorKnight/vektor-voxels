@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
@@ -26,7 +27,6 @@ namespace VektorVoxels.Chunks {
         private MeshCollider _meshCollider;
         
         // Lightmapper and mesher instances.
-        // TODO: Pool these.
         private LightMapper _lightMapper;
         private CubicMesher _mesher;
         private Mesh _mesh;
@@ -43,11 +43,20 @@ namespace VektorVoxels.Chunks {
         // Mesh data.
         private ChunkState _state;
         private bool _waitingForJob;
+        private bool _partialLoad;
         private LightPass _lightPass;
+        
+        // Jobs.
+        private GenerationJob _generationJob;
+        private LightJob _lightJobPass1;
+        private LightJob _lightJobPass2;
+        private LightJob _lightJobPass3;
+        private MeshJob _meshJob;
         
         // Thread safety.
         private ReaderWriterLockSlim _threadLock;
-        
+        private ConcurrentQueue<ChunkEvent> _eventQueue;
+
         private static readonly Vector2Int[] _chunkNeighbors = {
             Vector2Int.up, 
             Vector2Int.right, 
@@ -106,34 +115,77 @@ namespace VektorVoxels.Chunks {
             _blockLight = new Color16[dataSize];
             _heightMap = new HeightData[dimensions.x * dimensions.x];
             
+            // Create job instances.
+            _generationJob = new GenerationJob(this, OnGenerationComplete);
+            _lightJobPass1 = new LightJob(this, default, LightPass.First, _lightMapper, () => {
+                OnLightPassComplete(LightPass.First);
+            });
+            _lightJobPass2 = new LightJob(this, default, LightPass.Second, _lightMapper, () => {
+                OnLightPassComplete(LightPass.Second);
+            });
+            _lightJobPass2 = new LightJob(this, default, LightPass.Third, _lightMapper, () => {
+                OnLightPassComplete(LightPass.Third);
+            });
+            _meshJob = new MeshJob(this, default, _mesher, OnMeshPassComplete);
+            
             // Thread safety.
             _threadLock = new ReaderWriterLockSlim();
+            _eventQueue = new ConcurrentQueue<ChunkEvent>();
+            
+            // Register with world events.
+            WorldManager.OnWorldEvent += WorldEventHandler;
             
             // Queue generation pass.
             QueueGenerationPass();
         }
 
+        private void WorldEventHandler(WorldEvent e) {
+            _threadLock.EnterReadLock();
+            switch (e) {
+                case WorldEvent.LoadRegionChanged:
+                    var inView = WorldManager.Instance.IsChunkInView(_chunkId);
+
+                    if (!inView) {
+                        _eventQueue.Enqueue(ChunkEvent.Unload);
+                        _threadLock.ExitReadLock();
+                        return;
+                    }
+                    else if (_state == ChunkState.Inactive) {
+                        _eventQueue.Enqueue(ChunkEvent.Reload);
+                        _threadLock.ExitReadLock();
+                        return;
+                    }
+                    
+                    if (_partialLoad) {
+                        _partialLoad = false;
+                        _eventQueue.Enqueue(ChunkEvent.Reload);
+                    }
+                    break;
+                case WorldEvent.ViewDistanceChanged:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(e), e, null);
+            }
+            _threadLock.ExitReadLock();
+        }
+
+        private void ChunkEventHandler(ChunkEvent e) {
+            switch (e) {
+                case ChunkEvent.Unload:
+                    _state = ChunkState.Inactive;
+                    _meshRenderer.enabled = false;
+                    break;
+                case ChunkEvent.Reload:
+                    OnGenerationComplete();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(e), e, null);
+            }
+        }
+
         private void QueueGenerationPass() {
             _waitingForJob = true;
-            GlobalThreadPool.QueueWorkItem(() => {
-                // TODO: Actual generation code or class.
-                _threadLock.EnterWriteLock();
-                var dimensions = WorldManager.Instance.ChunkSize;
-                for (var z = 0; z < dimensions.x; z++) {
-                    for (var x = 0; x < dimensions.x; x++) {
-                        _voxelData[VoxelUtility.VoxelIndex(x, 0, z, dimensions)] = VoxelTable.ById(1).GetDataInstance();
-                        _heightMap[VoxelUtility.HeightIndex(x, z, dimensions.x)] = new HeightData(0, true);
-                    }
-                }
-
-                if (true) {
-                    _voxelData[VoxelUtility.VoxelIndex(4, 1, 6, dimensions)] = VoxelTable.ById((uint)(11 + (_chunkId.x % 2))).GetDataInstance();
-                    _heightMap[VoxelUtility.HeightIndex(4, 6, dimensions.x)] = new HeightData(1, true);
-                }
-                _threadLock.ExitWriteLock();
-                
-                GlobalThreadPool.QueueOnMain(OnGenerationComplete);
-            });
+            GlobalThreadPool.QueueWorkItem(_generationJob);
             _state = ChunkState.TerrainGeneration;
         }
 
@@ -143,52 +195,17 @@ namespace VektorVoxels.Chunks {
                     break;
                 }
                 case LightPass.First: {
-                    GlobalThreadPool.QueueWorkItem(() => {
-                        _threadLock.EnterWriteLock();
-                        var sw = new Stopwatch();
-                        sw.Start();
-                        _lightMapper.InitializeSunLightFirstPass(this);
-                        _lightMapper.PropagateSunLight(this);
-                        _lightMapper.InitializeBlockLightFirstPass(this);
-                        _lightMapper.PropagateBlockLight(this);
-                        sw.Stop();
-                        Debug.Log($"Light Pass 1 (Combined): {sw.ElapsedMilliseconds}ms");
-                        _threadLock.ExitWriteLock();
-                        
-                        GlobalThreadPool.QueueOnMain(() => OnLightPassComplete(LightPass.First));
-                    });
+                    GlobalThreadPool.QueueWorkItem(_lightJobPass1);
                     break;
                 }
                 case LightPass.Second: {
-                    GlobalThreadPool.QueueWorkItem(() => {
-                        _threadLock.EnterWriteLock();
-                        var sw = new Stopwatch();
-                        sw.Start();
-                        _lightMapper.InitializeNeighborLightPass(this, new NeighborSet(_neighborBuffer), _neighborFlags);
-                        _lightMapper.PropagateSunLight(this);
-                        _lightMapper.PropagateBlockLight(this);
-                        sw.Stop();
-                        Debug.Log($"Light Pass 2 (Combined): {sw.ElapsedMilliseconds}ms");
-                        _threadLock.ExitWriteLock();
-                        
-                        GlobalThreadPool.QueueOnMain(() => OnLightPassComplete(LightPass.Second));
-                    });
+                    _lightJobPass2.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
+                    GlobalThreadPool.QueueWorkItem(_lightJobPass2);
                     break;
                 }
                 case LightPass.Third: {
-                    GlobalThreadPool.QueueWorkItem(() => {
-                        _threadLock.EnterWriteLock();
-                        var sw = new Stopwatch();
-                        sw.Start();
-                        _lightMapper.InitializeNeighborLightPass(this, new NeighborSet(_neighborBuffer), _neighborFlags);
-                        _lightMapper.PropagateSunLight(this);
-                        _lightMapper.PropagateBlockLight(this);
-                        sw.Stop();
-                        Debug.Log($"Light Pass 3 (Combined): {sw.ElapsedMilliseconds}ms");
-                        _threadLock.ExitWriteLock();
-                        
-                        GlobalThreadPool.QueueOnMain(() => OnLightPassComplete(LightPass.Third));
-                    });
+                    _lightJobPass3.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
+                    GlobalThreadPool.QueueWorkItem(_lightJobPass3);
                     break;
                 }
                 default: {
@@ -202,17 +219,8 @@ namespace VektorVoxels.Chunks {
         
         private void QueueMeshPass() {
             _waitingForJob = true;
-            GlobalThreadPool.QueueWorkItem(() => {
-                _threadLock.EnterReadLock();
-                var sw = new Stopwatch();
-                sw.Start();
-                _mesher.GenerateMeshData(this, new NeighborSet(_neighborBuffer), _neighborFlags);
-                sw.Stop();
-                Debug.Log($"Mesh Pass: {sw.ElapsedMilliseconds}ms");
-                _threadLock.ExitReadLock();
-                
-                GlobalThreadPool.QueueOnMain(OnMeshPassComplete);
-            });
+            _meshJob.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
+            GlobalThreadPool.QueueWorkItem(_meshJob);
 
             _state = ChunkState.Meshing;
         }
@@ -237,16 +245,25 @@ namespace VektorVoxels.Chunks {
             _waitingForJob = false;
             _mesher.SetMeshData(ref _mesh);
             _meshRenderer.enabled = true;
+            _meshCollider.enabled = true;
+            _meshCollider.sharedMesh = _mesh;
             _state = ChunkState.Ready;
         }
 
         private void CheckForNeighborState() {
             _neighborFlags = NeighborFlags.None;
+            _partialLoad = false;
             for (var i = 0; i < 4; i++) {
                 _neighborBuffer[i] = null;
                 var neighborId = _chunkId + _chunkNeighbors[i];
 
-                if (!WorldManager.Instance.ChunkInBounds(neighborId)) {
+
+                if (!WorldManager.Instance.IsChunkInView(neighborId)) {
+                    _partialLoad = true;
+                    continue;
+                }
+                
+                if (!WorldManager.Instance.IsChunkInBounds(neighborId)) {
                     continue;
                 }
 
@@ -282,13 +299,6 @@ namespace VektorVoxels.Chunks {
             }
         }
 
-        public void OnLightSecondPassComplete() {
-            _waitingForJob = true;
-            
-
-            _state = ChunkState.Meshing;
-        }
-
         private void Update() {
             switch (_state) {
                 case ChunkState.Uninitialized: {
@@ -305,18 +315,46 @@ namespace VektorVoxels.Chunks {
                     break;
                 }
                 case ChunkState.Ready: {
-                    if (Input.GetKeyDown(KeyCode.Space)) {
-                        _meshRenderer.enabled = false;
-                        OnGenerationComplete();
-                    }
+                    //if (Input.GetKeyDown(KeyCode.Space)) {
+                        //_meshRenderer.enabled = false;
+                        //OnGenerationComplete();
+                    //}
                     break;
                 }
                 case ChunkState.Lighting:
+                    break;
+                case ChunkState.Inactive:
                     break;
                 default: {
                     throw new ArgumentOutOfRangeException();
                 }
             }
+
+            if (!_waitingForJob && _state == ChunkState.Ready || _state == ChunkState.Inactive) {
+                if (_threadLock.CurrentReadCount != 0) return;
+                // Process event queue.
+                _threadLock.EnterWriteLock();
+                while (_eventQueue.TryDequeue(out var e)) {
+                    ChunkEventHandler(e);
+                }
+                _threadLock.ExitWriteLock();
+            }
+        }
+
+        private void OnDrawGizmos() {
+            if (_state == ChunkState.Inactive) return;
+            Gizmos.color = _state switch {
+                ChunkState.Uninitialized => Color.red,
+                ChunkState.TerrainGeneration => Color.yellow,
+                ChunkState.Lighting => Color.magenta,
+                ChunkState.WaitingForNeighbors => Color.green,
+                ChunkState.Meshing => Color.cyan,
+                ChunkState.Ready => Color.blue,
+                ChunkState.Inactive => Color.clear,
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            
+            Gizmos.DrawWireCube(transform.position + new Vector3(8, 0, 8), Vector3.one * 16);
         }
     }
 }

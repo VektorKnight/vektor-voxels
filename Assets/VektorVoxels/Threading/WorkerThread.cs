@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace VektorVoxels.Threading {
 	public sealed class WorkerThread {
-        private readonly BlockingCollection<Action> _workQueue;
+        private readonly BlockingCollection<IWorkItem> _workQueue;
         private readonly ThreadConfig _config;
         private readonly Thread _thread;
         
@@ -30,7 +30,7 @@ namespace VektorVoxels.Threading {
         /// </summary>
         public Exception LastException => _lastException;
 
-        public WorkerThread(BlockingCollection<Action> workQueue, ThreadConfig config) {
+        public WorkerThread(BlockingCollection<IWorkItem> workQueue, ThreadConfig config) {
             _workQueue = workQueue;
             _config = config;
 
@@ -71,7 +71,7 @@ namespace VektorVoxels.Threading {
                 // Try to invoke the job and reset the cycle counter and thread status.
                 if (hasWork) {
                     try {
-                        job?.Invoke();
+                        job?.Execute();
                     }
                     catch (Exception e) {
                         Debug.LogError($"Worker thread has encountered an exception while processing a job.");
