@@ -13,9 +13,11 @@ namespace VektorVoxels.Interaction {
         [Header("Mouse")] 
         [SerializeField] private float _mouseSensitivity = 5.0f;
         [SerializeField] private float _mouseSmoothTime = 0.02f;
-
         [SerializeField] private Camera _mainCamera;
 
+        [Header("Editing")] 
+        [SerializeField] private Transform _selector;
+        
         private Vector2 _mouseRaw;
         private Vector2 _mouseSmooth;
         private Vector2 _mouseVel;
@@ -65,6 +67,15 @@ namespace VektorVoxels.Interaction {
             transform.rotation = Quaternion.Euler(0f, _desiredRotation.y, 0f);
             
             _mainCamera.transform.localRotation = Quaternion.Euler(_desiredRotation.x, 0f, 0f);
+            
+            var selectionRay = new Ray(_mainCamera.transform.position, _mainCamera.transform.forward);
+            if (Physics.Raycast(selectionRay, out RaycastHit hit, 10f)) {
+                _selector.transform.position = new Vector3(
+                    Mathf.RoundToInt(hit.point.x) - 0.5f,
+                    Mathf.RoundToInt(hit.point.y) - 0.5f,
+                    Mathf.RoundToInt(hit.point.z) - 0.5f
+                );
+            }
         }
 
         private void FixedUpdate() {

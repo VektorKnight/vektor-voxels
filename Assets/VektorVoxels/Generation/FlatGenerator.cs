@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
@@ -64,6 +65,14 @@ namespace VektorVoxels.Generation {
                 
                 // Update starting Y index for the next layer.
                 layerY += layer.Thickness;
+            }
+            
+            // Set heightmap values.
+            for (var z = 0; z < d.x; z++) {
+                for (var x = 0; x < d.x; x++) {
+                    var hi = VoxelUtility.HeightIndex(x, z, d.x);
+                    chunk.HeightMap[hi] = new HeightData(32, true);
+                }
             }
         }
     }

@@ -24,6 +24,7 @@ namespace VektorVoxels.Threading {
         }
 
         private void Initialize() {
+            // Allocate 3/4 of the system's thread count.
             var threadCount = SystemInfo.processorCount * 3 / 4;
             _threadPool = new ThreadPool((uint)threadCount, ThreadConfig.Default());
             _mainQueue = new ConcurrentQueue<Action>();
@@ -32,7 +33,7 @@ namespace VektorVoxels.Threading {
             Debug.Log($"[Global Thread Pool] Initialized with {threadCount} threads.");
         }
 
-        public static void QueueWorkItem(IWorkItem item) {
+        public static void QueueWorkItem(IPoolJob item) {
             Instance._threadPool.EnqueueWorkItem(item);
         }
 
