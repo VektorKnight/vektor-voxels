@@ -10,14 +10,32 @@ namespace VektorVoxels.Voxels {
         
         // Top and Side texture rects.
         public readonly Vector2 AtlasA, AtlasB;
-
-        public VoxelDefinition(uint id, string name, VoxelFlags flags, Color16 colorData, Vector2 atlasA, Vector2 atlasB) {
-            Id = id;
+        
+        /// <summary>
+        /// Definition for a particular voxel type.
+        /// Use this constructor to define your voxels.
+        /// IDs are set automatically by order of definition at runtime.
+        /// </summary>
+        public VoxelDefinition(string name, VoxelFlags flags, Color16 colorData, Vector2 atlasA, Vector2 atlasB) {
+            Id = 0;
             Name = name;
             Flags = flags;
             ColorData = colorData;
             AtlasA = atlasA;
             AtlasB = atlasB;
+        }
+        
+        /// <summary>
+        /// Creates a runtime voxel definition from a user-defined source.
+        /// This is not meant to be called by the user.
+        /// </summary>
+        public VoxelDefinition(uint id, VoxelDefinition src) {
+            Id = id;
+            Name = src.Name;
+            Flags = src.Flags;
+            ColorData = src.ColorData;
+            AtlasA = src.AtlasA;
+            AtlasB = src.AtlasB;
         }
 
         /// <summary>

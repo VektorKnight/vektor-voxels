@@ -85,12 +85,14 @@ namespace VektorVoxels.Meshing {
             int nvi;
             bool exists;
             
+            // Handle out of bounds Y values.
             if (p.y < 0 || p.y >= d.y) {
                 v = VoxelData.Null();
                 l = new LightData(Color16.White(), Color16.Clear());
                 return;
             }
             
+            // Determine which neighbor to pull data from.
             if (p.x >= 0 && p.x < d.x && p.z >= d.x) {
                 exists = (n.Flags & NeighborFlags.North) != 0;
                 neighbor = n.North;
@@ -111,7 +113,7 @@ namespace VektorVoxels.Meshing {
                 neighbor = n.West;
                 nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
             }
-
+            
             if (exists) {
                 v = neighbor.VoxelData[nvi];
                 l = new LightData(neighbor.SunLight[nvi], neighbor.BlockLight[nvi]);
@@ -121,7 +123,10 @@ namespace VektorVoxels.Meshing {
                 l = new LightData(Color16.White(), Color16.Clear());
             }
         }
-
+        
+        /// <summary>
+        /// Acquires read locks on any valid neighbors.
+        /// </summary>
         private void AcquireNeighborLocks(in NeighborSet neighbors) {
             if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.EnterReadLock();
@@ -139,7 +144,10 @@ namespace VektorVoxels.Meshing {
                 neighbors.West.ThreadLock.EnterReadLock();
             }
         }
-
+        
+        /// <summary>
+        /// Releases read locks on any valid neighbors.
+        /// </summary>
         private void ReleaseNeighborLocks(in NeighborSet neighbors) {
             if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.ExitReadLock();
@@ -217,10 +225,16 @@ namespace VektorVoxels.Meshing {
                                 for (var l = 0; l < 8; l++) {
                                     var lnp = MeshTables.LightNeighbors[i][l] + np;
                                     var lni = VoxelUtility.VoxelIndex(in lnp, d);
-                                    
-                                    _lightWorkBuffer[l] = VoxelUtility.InLocalGrid(lnp, d)
-                                        ? new LightData(sunLight[lni], blockLight[lni])
-                                        : new LightData(Color16.Clear(), Color16.Clear());
+
+                                    LightData smoothLightData;
+                                    if (VoxelUtility.InLocalGrid(lnp, d)) {
+                                        smoothLightData = new LightData(sunLight[lni], blockLight[lni]);
+                                    }
+                                    else {
+                                        GetNeighborData(in lnp, in d, in neighbors, out _, out smoothLightData);
+                                    }
+
+                                    _lightWorkBuffer[l] = smoothLightData;
                                 }
                             }
 
@@ -236,8 +250,8 @@ namespace VektorVoxels.Meshing {
                             
                             // Generate UV coordinates from voxel table.
                             var origin = i == 4 || i == 5
-                                ? VoxelTable.ById(voxel.Id).AtlasA * TEX_UV_WIDTH
-                                : VoxelTable.ById(voxel.Id).AtlasB * TEX_UV_WIDTH;
+                                ? VoxelTable.GetVoxelDefinition(voxel.Id).AtlasA * TEX_UV_WIDTH
+                                : VoxelTable.GetVoxelDefinition(voxel.Id).AtlasB * TEX_UV_WIDTH;
                             
                             _uvWorkBuffer[0] = new Vector2(origin.x, origin.y + TEX_UV_WIDTH);
                             _uvWorkBuffer[1] = new Vector2(origin.x, origin.y);

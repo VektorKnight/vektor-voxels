@@ -1,6 +1,7 @@
 ﻿using System;
 using UnityEngine;
 using VektorVoxels.Chunks;
+using VektorVoxels.Generation;
 
 namespace VektorVoxels.World {
     /// <summary>
@@ -26,7 +27,8 @@ namespace VektorVoxels.World {
         [SerializeField] [Range(0, 128)] private int _seaLevel = 32;
         [SerializeField] [Range(1, 32)] private int _viewDistance = 10;
         [SerializeField] private Transform _loadTransform;
-        
+
+        private ITerrainGenerator _generator;
         private Chunk[,] _chunks;
         private LoadRect _loadRect;
         
@@ -40,6 +42,7 @@ namespace VektorVoxels.World {
         public WorldType WorldType => _worldType;
         public int SeaLevel => _seaLevel;
 
+        public ITerrainGenerator Generator => _generator;
         public Chunk[,] Chunks => _chunks;
         public LoadRect LoadRect => _loadRect;
         
@@ -67,15 +70,21 @@ namespace VektorVoxels.World {
             var chunkPos = ChunkPosFromId(id);
             return _loadRect.ContainsChunk(chunkPos);
         }
-
+        
+        /// <summary>
+        /// Gets a chunk position from its ID.
+        /// </summary>
         public Vector2Int ChunkPosFromId(Vector2Int id) {
             return new Vector2Int(id.x - (_maxChunks.x >> 1), id.y - (_maxChunks.y >> 1));
         }
-
+        
+        /// <summary>
+        /// Gets a chunk ID from its position.
+        /// </summary>
         public Vector2Int ChunkIdFromPos(Vector2Int pos) {
             return new Vector2Int(pos.x + _maxChunks.x / 2, pos.y + _maxChunks.y / 2);
         }
-
+        
         public Vector2Int WorldToChunkPos(in Vector3 pos) {
             return new Vector2Int(
                 Mathf.FloorToInt(pos.x) / _chunkSize.x,
@@ -91,22 +100,10 @@ namespace VektorVoxels.World {
             }
 
             Instance = this;
+            
+            _generator = FlatGenerator.Default();
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
-
             _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);
-
-            /*for (var z = 0; z < _maxChunks.y; z++) {
-                for (var x = 0; x < _maxChunks.x; x++) {
-                    var chunkPos = new Vector3Int(x - _maxChunks.x / 2, 0, z - _maxChunks.y / 2);
-                    chunkPos *= _chunkSize.x;
-                    
-                    var chunk = Instantiate(_chunkPrefab, chunkPos, Quaternion.identity);
-                    chunk.transform.SetParent(transform);
-                    chunk.Initialize(new Vector2Int(x, z));
-                    chunk.name = $"Chunk[{x},{z}]";
-                    _chunks[x, z] = chunk;
-                }
-            }*/
         }
 
         private void Update() {

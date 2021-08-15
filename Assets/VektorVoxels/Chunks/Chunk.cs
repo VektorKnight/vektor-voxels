@@ -116,7 +116,7 @@ namespace VektorVoxels.Chunks {
             _heightMap = new HeightData[dimensions.x * dimensions.x];
             
             // Create job instances.
-            _generationJob = new GenerationJob(this, OnGenerationComplete);
+            _generationJob = new GenerationJob(this, OnGenerationPassComplete);
             _lightJobPass1 = new LightJob(this, default, LightPass.First, _lightMapper, () => {
                 OnLightPassComplete(LightPass.First);
             });
@@ -138,7 +138,10 @@ namespace VektorVoxels.Chunks {
             // Queue generation pass.
             QueueGenerationPass();
         }
-
+        
+        /// <summary>
+        /// Processes events from the world manager.
+        /// </summary>
         private void WorldEventHandler(WorldEvent e) {
             _threadLock.EnterReadLock();
             switch (e) {
@@ -168,28 +171,42 @@ namespace VektorVoxels.Chunks {
             }
             _threadLock.ExitReadLock();
         }
-
-        private void ChunkEventHandler(ChunkEvent e) {
+        
+        /// <summary>
+        /// Processes chunk events.
+        /// </summary>
+        private void ProcessChunkEvent(ChunkEvent e) {
             switch (e) {
                 case ChunkEvent.Unload:
                     _state = ChunkState.Inactive;
                     _meshRenderer.enabled = false;
                     break;
                 case ChunkEvent.Reload:
-                    OnGenerationComplete();
+                    OnGenerationPassComplete();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(e), e, null);
             }
         }
-
+        
+        /// <summary>
+        /// Queues the terrain generation pass on this chunk.
+        /// </summary>
         private void QueueGenerationPass() {
-            _waitingForJob = true;
+            Debug.Assert(!_waitingForJob, "Generation pass queued while another job was running.");
+            
             GlobalThreadPool.QueueWorkItem(_generationJob);
+            
+            _waitingForJob = true;
             _state = ChunkState.TerrainGeneration;
         }
-
+        
+        /// <summary>
+        /// Queues a light pass on this chunk.
+        /// </summary>
         private void QueueLightPass(LightPass pass) {
+            Debug.Assert(!_waitingForJob, "Light pass queued while another job was running.");
+            
             switch (pass) {
                 case LightPass.None: {
                     break;
@@ -218,15 +235,16 @@ namespace VektorVoxels.Chunks {
         }
         
         private void QueueMeshPass() {
-            _waitingForJob = true;
+            Debug.Assert(!_waitingForJob, "Mesh pass queued while another job was running.");
+            
             _meshJob.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
             GlobalThreadPool.QueueWorkItem(_meshJob);
-
+            
+            _waitingForJob = true;
             _state = ChunkState.Meshing;
         }
         
-        private void OnGenerationComplete() {
-            // Queue first light first pass on the threadpool.
+        private void OnGenerationPassComplete() {
             _waitingForJob = false;
             _lightPass = LightPass.None;
             QueueLightPass(LightPass.First);
@@ -335,7 +353,7 @@ namespace VektorVoxels.Chunks {
                 // Process event queue.
                 _threadLock.EnterWriteLock();
                 while (_eventQueue.TryDequeue(out var e)) {
-                    ChunkEventHandler(e);
+                    ProcessChunkEvent(e);
                 }
                 _threadLock.ExitWriteLock();
             }
