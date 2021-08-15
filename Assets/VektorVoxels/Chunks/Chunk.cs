@@ -45,13 +45,12 @@ namespace VektorVoxels.Chunks {
         private bool _waitingForJob;
         private bool _partialLoad;
         private LightPass _lightPass;
-        
-        // Jobs.
-        private GenerationJob _generationJob;
-        private LightJob _lightJobPass1;
-        private LightJob _lightJobPass2;
-        private LightJob _lightJobPass3;
-        private MeshJob _meshJob;
+
+        // Job callbacks.
+        private long _jobSetCounter;
+        private Action _generationCallback;
+        private Action _lightCallback1, _lightCallback2, _lightCallback3;
+        private Action _meshCallback;
         
         // Thread safety.
         private ReaderWriterLockSlim _threadLock;
@@ -72,7 +71,10 @@ namespace VektorVoxels.Chunks {
         public Color16[] SunLight => _sunLight;
         public ChunkState State => _state;
         public LightPass LightPass => _lightPass;
+        
+        // Threading.
         public ReaderWriterLockSlim ThreadLock => _threadLock;
+        public long JobCounter => Interlocked.Read(ref _jobSetCounter);
 
         /// <summary>
         /// Initializes this chunk and gets it ready for use.
@@ -115,19 +117,13 @@ namespace VektorVoxels.Chunks {
             _blockLight = new Color16[dataSize];
             _heightMap = new HeightData[dimensions.x * dimensions.x];
             
-            // Create job instances.
-            _generationJob = new GenerationJob(this, OnGenerationPassComplete);
-            _lightJobPass1 = new LightJob(this, default, LightPass.First, _lightMapper, () => {
-                OnLightPassComplete(LightPass.First);
-            });
-            _lightJobPass2 = new LightJob(this, default, LightPass.Second, _lightMapper, () => {
-                OnLightPassComplete(LightPass.Second);
-            });
-            _lightJobPass2 = new LightJob(this, default, LightPass.Third, _lightMapper, () => {
-                OnLightPassComplete(LightPass.Third);
-            });
-            _meshJob = new MeshJob(this, default, _mesher, OnMeshPassComplete);
-            
+            // Job completion callbacks.
+            _generationCallback = OnGenerationPassComplete;
+            _lightCallback1 = () => OnLightPassComplete(LightPass.First);
+            _lightCallback2 = () => OnLightPassComplete(LightPass.Second);
+            _lightCallback3 = () => OnLightPassComplete(LightPass.Third);
+            _meshCallback = OnMeshPassComplete;
+
             // Thread safety.
             _threadLock = new ReaderWriterLockSlim();
             _eventQueue = new ConcurrentQueue<ChunkEvent>();
@@ -159,12 +155,10 @@ namespace VektorVoxels.Chunks {
                         return;
                     }
                     
-                    if (_partialLoad) {
+                    if (_partialLoad && _state == ChunkState.Ready) {
                         _partialLoad = false;
                         _eventQueue.Enqueue(ChunkEvent.Reload);
                     }
-                    break;
-                case WorldEvent.ViewDistanceChanged:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(e), e, null);
@@ -194,10 +188,12 @@ namespace VektorVoxels.Chunks {
         /// </summary>
         private void QueueGenerationPass() {
             Debug.Assert(!_waitingForJob, "Generation pass queued while another job was running.");
-            
-            GlobalThreadPool.QueueWorkItem(_generationJob);
-            
             _waitingForJob = true;
+            
+            // First job in the chain so increment the counter.
+            Interlocked.Increment(ref _jobSetCounter);
+            
+            GlobalThreadPool.QueueWorkItem(new GenerationJob(_jobSetCounter, this, _generationCallback));
             _state = ChunkState.TerrainGeneration;
         }
         
@@ -205,24 +201,44 @@ namespace VektorVoxels.Chunks {
         /// Queues a light pass on this chunk.
         /// </summary>
         private void QueueLightPass(LightPass pass) {
-            Debug.Assert(!_waitingForJob, "Light pass queued while another job was running.");
-            
             switch (pass) {
                 case LightPass.None: {
                     break;
                 }
                 case LightPass.First: {
-                    GlobalThreadPool.QueueWorkItem(_lightJobPass1);
+                    GlobalThreadPool.QueueWorkItem(
+                        new LightJob(
+                            _jobSetCounter, 
+                            this, 
+                            new NeighborSet(_neighborBuffer, _neighborFlags),
+                            _lightMapper,
+                            LightPass.First, _lightCallback1
+                        )
+                    );
                     break;
                 }
                 case LightPass.Second: {
-                    _lightJobPass2.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
-                    GlobalThreadPool.QueueWorkItem(_lightJobPass2);
+                    GlobalThreadPool.QueueWorkItem(
+                        new LightJob(
+                            _jobSetCounter, 
+                            this, 
+                            new NeighborSet(_neighborBuffer, _neighborFlags),
+                            _lightMapper,
+                            LightPass.Second, _lightCallback2
+                        )
+                    );
                     break;
                 }
                 case LightPass.Third: {
-                    _lightJobPass3.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
-                    GlobalThreadPool.QueueWorkItem(_lightJobPass3);
+                    GlobalThreadPool.QueueWorkItem(
+                        new LightJob(
+                            _jobSetCounter, 
+                            this, 
+                            new NeighborSet(_neighborBuffer, _neighborFlags),
+                            _lightMapper,
+                            LightPass.Third, _lightCallback3
+                        )
+                    );
                     break;
                 }
                 default: {
@@ -230,32 +246,30 @@ namespace VektorVoxels.Chunks {
                 }
             }
             
-            _waitingForJob = true;
             _state = ChunkState.Lighting;
         }
         
         private void QueueMeshPass() {
-            Debug.Assert(!_waitingForJob, "Mesh pass queued while another job was running.");
-            
-            _meshJob.Neighbors = new NeighborSet(_neighborBuffer, _neighborFlags);
-            GlobalThreadPool.QueueWorkItem(_meshJob);
-            
-            _waitingForJob = true;
+            GlobalThreadPool.QueueWorkItem(
+                new MeshJob(
+                    _jobSetCounter, 
+                    this, 
+                    new NeighborSet(_neighborBuffer, _neighborFlags), 
+                    _mesher, 
+                    _meshCallback
+                )
+            );
             _state = ChunkState.Meshing;
         }
         
         private void OnGenerationPassComplete() {
-            _waitingForJob = false;
             _lightPass = LightPass.None;
             QueueLightPass(LightPass.First);
         }
 
         private void OnLightPassComplete(LightPass pass) {
             Debug.Assert(pass > _lightPass);
-            
-            _waitingForJob = false;
             _lightPass = pass;
-
             _state = ChunkState.WaitingForNeighbors;
         }
 
@@ -274,8 +288,7 @@ namespace VektorVoxels.Chunks {
             for (var i = 0; i < 4; i++) {
                 _neighborBuffer[i] = null;
                 var neighborId = _chunkId + _chunkNeighbors[i];
-
-
+                
                 if (!WorldManager.Instance.IsChunkInView(neighborId)) {
                     _partialLoad = true;
                     continue;

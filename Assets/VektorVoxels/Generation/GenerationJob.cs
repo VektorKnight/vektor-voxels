@@ -1,24 +1,23 @@
 ﻿using System;
-using Unity.Jobs;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Threading;
+using VektorVoxels.Voxels;
+using VektorVoxels.World;
 
-namespace VektorVoxels.Meshing {
-    public readonly struct MeshJob : IPoolJob {
+namespace VektorVoxels.Chunks {
+    /// <summary>
+    /// Executes the primary terrain generator on a given chunk.
+    /// </summary>
+    public readonly struct GenerationJob : IPoolJob {
         private readonly long _id;
         private readonly Chunk _chunk;
-        private readonly NeighborSet _neighbors;
-        private readonly CubicMesher _mesher;
         private readonly Action _callBack;
 
         public long Id => _id;
 
-        public MeshJob(long id, Chunk chunk, NeighborSet neighbors, CubicMesher mesher, Action callBack) {
+        public GenerationJob(long id, Chunk chunk, Action callBack) {
             _id = id;
             _chunk = chunk;
-            _neighbors = neighbors;
-            _mesher = mesher;
             _callBack = callBack;
         }
 
@@ -29,11 +28,10 @@ namespace VektorVoxels.Meshing {
                 return;
             }
             
-            _chunk.ThreadLock.EnterReadLock();
-            _mesher.GenerateMeshData(_chunk, _neighbors);
-            
+            _chunk.ThreadLock.EnterWriteLock();
+            WorldManager.Instance.Generator.ProcessChunk(_chunk);
             GlobalThreadPool.QueueOnMain(_callBack);
-            _chunk.ThreadLock.ExitReadLock();
+            _chunk.ThreadLock.ExitWriteLock();
         }
     }
 }

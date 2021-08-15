@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Generation;
@@ -124,6 +125,7 @@ namespace VektorVoxels.World {
                 OnWorldEvent?.Invoke(WorldEvent.LoadRegionChanged);
             }
 
+            // TODO: Loads chunks nearest the player first.
             for (var z = loadOrigin.y - _viewDistance; z < loadOrigin.y + _viewDistance; z++) {
                 for (var x = loadOrigin.x - _viewDistance; x < loadOrigin.x + _viewDistance; x++) {
                     var chunkId = ChunkIdFromPos(new Vector2Int(x, z));
