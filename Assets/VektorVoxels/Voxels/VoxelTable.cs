@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 using VektorVoxels.Lighting;
 
 namespace VektorVoxels.Voxels {
@@ -7,13 +10,63 @@ namespace VektorVoxels.Voxels {
     /// (Maybe an automatic system would be less work overall, oh well)
     /// </summary>
     public static class VoxelTable {
-        public static VoxelDefinition ById(uint id) {
-            return Voxels[id - 1];
+        /// <summary>
+        /// Gets the name of a voxel by its ID.
+        /// </summary>
+        public static string GetVoxelName(uint id) {
+            return _runtimeVoxels[id - 1].Name.ToLower();
         }
         
-        public static readonly VoxelDefinition[] Voxels = {
+        /// <summary>
+        /// Gets the ID of a voxel by its lower-case name.
+        /// </summary>
+        public static uint GetVoxelId(string name) {
+            return _nameIdMap[name];
+        }
+        
+        /// <summary>
+        /// Gets a voxel definition by its ID.
+        /// </summary>
+        public static VoxelDefinition GetVoxelDefinition(uint id) {
+            return _runtimeVoxels[id - 1];
+        }
+        
+        /// <summary>
+        /// Tries to find a voxel definition by name.
+        /// Name lookups should always be lower-case.
+        /// Do not use this function in any tight loops.
+        /// Grab and cache the ID of the voxel you need.
+        /// </summary>
+        public static VoxelDefinition GetVoxelDefinition(string name) {
+            var id = _nameIdMap[name];
+            return _runtimeVoxels[id - 1];
+        }
+
+        private static VoxelDefinition[] _runtimeVoxels;
+        private static Dictionary<string, uint> _nameIdMap;
+        
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+        private static void Initialize() {
+            _runtimeVoxels = new VoxelDefinition[UserVoxels.Length];
+            _nameIdMap = new Dictionary<string, uint>(UserVoxels.Length);
+            
+            // User IDs start at 1 as 0 us reserved for air/null.
+            uint id = 1;
+            foreach (var userVoxel in UserVoxels) {
+                _runtimeVoxels[id - 1] = new VoxelDefinition(id, userVoxel);
+                _nameIdMap.Add(userVoxel.Name.ToLower(), id);
+                id++;
+            }
+            
+            Debug.Log($"[Voxel Table]: Successfully registered {UserVoxels.Length} voxel definitions.");
+        }
+
+        /// <summary>
+        /// Define your voxels here.
+        /// Avoid duplicate names.
+        /// </summary>
+        private static readonly VoxelDefinition[] UserVoxels = {
             new VoxelDefinition(
-                1, 
                 "Grass", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
@@ -21,7 +74,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(1, 0)
             ),
             new VoxelDefinition(
-                2, 
                 "Dirt", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
@@ -29,7 +81,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(2, 0)
             ),
             new VoxelDefinition(
-                3, 
                 "Gravel", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
@@ -37,7 +88,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(3, 0)
             ),
             new VoxelDefinition(
-                4, 
                 "Sand", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
@@ -45,7 +95,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(4, 0)
             ),
             new VoxelDefinition(
-                5, 
                 "Stone", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
@@ -53,7 +102,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(5, 0)
             ),
             new VoxelDefinition(
-                6, 
                 "Bedrock", 
                 VoxelFlags.Unbreakable, 
                 Color16.Clear(), 
@@ -61,7 +109,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(6, 0)
             ),
             new VoxelDefinition(
-                7, 
                 "Glass", 
                 VoxelFlags.AlphaRender, 
                 Color16.Clear(), 
@@ -69,7 +116,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(0, 6)
             ),
             new VoxelDefinition(
-                8, 
                 "Glass Red", 
                 VoxelFlags.AlphaRender, 
                 new Color16(15, 0, 0, 0).ToAttenuation(), 
@@ -77,7 +123,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(3, 6)
             ),
             new VoxelDefinition(
-                9, 
                 "Glass Green", 
                 VoxelFlags.AlphaRender, 
                 new Color16(0, 15, 0, 0).ToAttenuation(), 
@@ -85,7 +130,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(6, 6)
             ),
             new VoxelDefinition(
-                10, 
                 "Glass Blue", 
                 VoxelFlags.AlphaRender, 
                 new Color16(0, 0, 15, 0).ToAttenuation(), 
@@ -93,7 +137,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(9, 6)
             ),
             new VoxelDefinition(
-                11, 
                 "Glowstone", 
                 VoxelFlags.LightSource, 
                 new Color16(15, 0, 0, 0), 
@@ -101,7 +144,6 @@ namespace VektorVoxels.Voxels {
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                12, 
                 "Bluestone", 
                 VoxelFlags.LightSource, 
                 new Color16(0, 0, 15, 0), 

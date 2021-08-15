@@ -1,6 +1,7 @@
 ﻿namespace VektorVoxels.Chunks {
     public enum ChunkEvent {
         Unload,
-        Reload
+        Reload,
+        ApplyEdits,
     }
 }
