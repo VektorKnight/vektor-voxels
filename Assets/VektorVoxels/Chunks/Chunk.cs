@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
@@ -10,7 +11,6 @@ using VektorVoxels.Threading;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
 using Debug = UnityEngine.Debug;
-using Random = UnityEngine.Random;
 
 namespace VektorVoxels.Chunks {
     [RequireComponent(typeof(MeshFilter))]
@@ -40,6 +40,10 @@ namespace VektorVoxels.Chunks {
         private Color16[] _blockLight;
         private HeightData[] _heightMap;
         
+        // Event/update queues.
+        private ConcurrentQueue<ChunkEvent> _eventQueue;
+        private List<VoxelUpdate> _voxelUpdates;
+        
         // Mesh data.
         private ChunkState _state;
         private bool _waitingForJob;
@@ -54,8 +58,7 @@ namespace VektorVoxels.Chunks {
         
         // Thread safety.
         private ReaderWriterLockSlim _threadLock;
-        private ConcurrentQueue<ChunkEvent> _eventQueue;
-
+        
         private static readonly Vector2Int[] _chunkNeighbors = {
             Vector2Int.up, 
             Vector2Int.right, 
