@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace VektorVoxels.Threading {
 	public sealed class WorkerThread {
-        private readonly BlockingCollection<IPoolJob> _workQueue;
+        private readonly BlockingCollection<PoolJob> _workQueue;
         private readonly ThreadConfig _config;
         private readonly Thread _thread;
         
@@ -30,7 +30,7 @@ namespace VektorVoxels.Threading {
         /// </summary>
         public Exception LastException => _lastException;
 
-        public WorkerThread(BlockingCollection<IPoolJob> workQueue, ThreadConfig config) {
+        public WorkerThread(BlockingCollection<PoolJob> workQueue, ThreadConfig config) {
             _workQueue = workQueue;
             _config = config;
 

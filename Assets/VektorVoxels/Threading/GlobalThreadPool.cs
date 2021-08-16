@@ -33,9 +33,15 @@ namespace VektorVoxels.Threading {
             
             Debug.Log($"[Global Thread Pool] Initialized with {ThreadCount} threads.");
         }
-
-        public static void QueueWorkItem(IPoolJob item) {
+        
+        /// <summary>
+        /// Immediately queues the provided job for execution on the pool.
+        /// </summary>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        public static PoolJob DispatchJob(PoolJob item) {
             Instance._threadPool.EnqueueWorkItem(item);
+            return item;
         }
 
         public static void QueueOnMain(Action a) {

@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 7992831999626789076}
   - component: {fileID: 7992831999626789072}
   - component: {fileID: 7992831999626789075}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Main Camera
   m_TagString: MainCamera
   m_Icon: {fileID: 0}
@@ -173,7 +173,7 @@ GameObject:
   - component: {fileID: 7992832001240577699}
   - component: {fileID: 7992832001240577697}
   - component: {fileID: 7992832001240577696}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 2974397684917235467, guid: 0000000000000000d000000000000000, type: 0}
@@ -225,10 +225,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e841d3ff12d743b088da30fbde8fc6cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _moveSpeed: 7
+  _moveSpeed: 10
   _thrustMultiplier: 2
   _jumpSpeed: 8
   _terminalSpeed: 50
   _mouseSensitivity: 1
   _mouseSmoothTime: 0.01
   _mainCamera: {fileID: 7992831999626789077}
+  _selector: {fileID: 0}

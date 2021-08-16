@@ -8,7 +8,7 @@ namespace VektorVoxels.Threading {
     /// Custom thread pool with progressive throttling.
     /// </summary>
     public sealed class ThreadPool {
-        private readonly BlockingCollection<IPoolJob> _workQueue;
+        private readonly BlockingCollection<PoolJob> _workQueue;
         private readonly List<WorkerThread> _workers;
 
         /// <summary>
@@ -21,7 +21,7 @@ namespace VektorVoxels.Threading {
                 throw new ArgumentException("Thread count must be greater than zero!");
             }
             
-            _workQueue = new BlockingCollection<IPoolJob>(new ConcurrentQueue<IPoolJob>());
+            _workQueue = new BlockingCollection<PoolJob>(new ConcurrentQueue<PoolJob>());
             _workers = new List<WorkerThread>();
 
             for (var i = 0; i < threadCount; i++) {
@@ -29,7 +29,7 @@ namespace VektorVoxels.Threading {
             }
         }
 
-        public void EnqueueWorkItem(IPoolJob poolJob) {
+        public void EnqueueWorkItem(PoolJob poolJob) {
             if (_workQueue.IsAddingCompleted) {
                 throw new InvalidOperationException("Cannot queue a work item if the pool is shutting down.");
             }
