@@ -5,6 +5,7 @@ using UnityEngine;
 namespace VektorVoxels.Threading {
     public class GlobalThreadPool : MonoBehaviour {
         public static GlobalThreadPool Instance { get; private set; }
+        public static uint ThreadCount { get; private set; }
 
         private bool _initialized;
         private ThreadPool _threadPool;
@@ -25,12 +26,12 @@ namespace VektorVoxels.Threading {
 
         private void Initialize() {
             // Allocate 3/4 of the system's thread count.
-            var threadCount = SystemInfo.processorCount * 3 / 4;
-            _threadPool = new ThreadPool((uint)threadCount, ThreadConfig.Default());
+            ThreadCount = (uint)SystemInfo.processorCount * 3 / 4;
+            _threadPool = new ThreadPool(ThreadCount, ThreadConfig.Default());
             _mainQueue = new ConcurrentQueue<Action>();
             _initialized = true;
             
-            Debug.Log($"[Global Thread Pool] Initialized with {threadCount} threads.");
+            Debug.Log($"[Global Thread Pool] Initialized with {ThreadCount} threads.");
         }
 
         public static void QueueWorkItem(IPoolJob item) {
