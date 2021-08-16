@@ -12,16 +12,14 @@ namespace VektorVoxels.UI {
         [SerializeField] private Transform _player;
         
         private Canvas _canvas;
-        private Process _process;
 
         private void Awake() {
             _canvas = GetComponent<Canvas>();
 
             _upperRight.text = $"{SystemInfo.processorType.Trim()}\n" +
                                $"{SystemInfo.graphicsDeviceName} | {SystemInfo.graphicsDeviceType}\n" +
-                               $"{SystemInfo.operatingSystem}";
-            
-            _process = Process.GetCurrentProcess();
+                               $"{SystemInfo.operatingSystem}\n" +
+                               $"Unity {Application.unityVersion}";
         }
 
         private void Update() {
@@ -36,7 +34,7 @@ namespace VektorVoxels.UI {
             var position = _player.position;
             var chunk = WorldManager.Instance.WorldToChunkPos(position);
             
-            _upperLeft.text = $"{Application.productName}\n" +
+            _upperLeft.text = $"{Application.productName} | {Application.version}\n" +
                               $"FPS: {1f / Time.deltaTime:n0}\n" +
                               $"W: {_player.transform.position}\n" +
                               $"C: {chunk}";

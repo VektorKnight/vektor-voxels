@@ -5,18 +5,14 @@ using VektorVoxels.Chunks;
 using VektorVoxels.Threading;
 
 namespace VektorVoxels.Lighting {
-    public readonly struct LightJob : IPoolJob {
-        private readonly long _id;
+    public class LightJob : PoolJob {
         private readonly Chunk _chunk;
         private readonly NeighborSet _neighbors;
         private readonly LightMapper _lightMapper;
         private readonly LightPass _pass;
         private readonly Action _callBack;
 
-        public long Id => _id;
-
-        public LightJob(long id, Chunk chunk, NeighborSet neighbors, LightMapper lightMapper, LightPass pass, Action callBack) {
-            _id = id;
+        public LightJob(long id, Chunk chunk, NeighborSet neighbors, LightMapper lightMapper, LightPass pass, Action callBack) : base(id) {
             _chunk = chunk;
             _neighbors = neighbors;
             _lightMapper = lightMapper;
@@ -24,15 +20,15 @@ namespace VektorVoxels.Lighting {
             _callBack = callBack;
         }
 
-        public void Execute() {
+        public override void Execute() {
             // Abort the job if the chunk's counter is != the assigned id.
-            if (_chunk.JobCounter != _id) {
-                Debug.LogWarning($"Aborting orphaned job with ID: {_id}");
+            if (_chunk.JobCounter != Id) {
+                Debug.LogWarning($"Aborting orphaned job with ID: {Id}");
+                CompletionState = JobCompletionState.Aborted;
                 return;
             }
             
             _chunk.ThreadLock.EnterWriteLock();
-            
             switch (_pass) {
                 case LightPass.None:
                     break;
@@ -55,10 +51,15 @@ namespace VektorVoxels.Lighting {
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-            
-            GlobalThreadPool.QueueOnMain(_callBack);
-            
             _chunk.ThreadLock.ExitWriteLock();
+            
+            // Signal completion.
+            CompletionState = JobCompletionState.Completed;
+            
+            // Invoke callback on main if specified.
+            if (_callBack != null) {
+                GlobalThreadPool.QueueOnMain(_callBack);
+            }
         }
     }
 }

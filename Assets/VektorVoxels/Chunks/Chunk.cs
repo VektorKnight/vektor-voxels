@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
@@ -175,11 +176,10 @@ namespace VektorVoxels.Chunks {
         private void ProcessChunkEvent(ChunkEvent e) {
             switch (e) {
                 case ChunkEvent.Unload:
-                    _state = ChunkState.Inactive;
-                    _meshRenderer.enabled = false;
+                    Unload();
                     break;
                 case ChunkEvent.Reload:
-                    OnGenerationPassComplete();
+                    Reload();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(e), e, null);
@@ -190,14 +190,31 @@ namespace VektorVoxels.Chunks {
         /// Queues the terrain generation pass on this chunk.
         /// </summary>
         private void QueueGenerationPass() {
-            Debug.Assert(!_waitingForJob, "Generation pass queued while another job was running.");
+            _waitingForJob = true;
+            GlobalThreadPool.DispatchJob(new GenerationJob(_jobSetCounter, this, _generationCallback));
+            _state = ChunkState.TerrainGeneration;
+        }
+        
+        /// <summary>
+        /// Reloads this chunk.
+        /// Executes lighting passes 1-3 then a mesh pass.
+        /// </summary>
+        private void Reload() {
+            Debug.Assert(!_waitingForJob, "Reload started while another job was running.");
             _waitingForJob = true;
             
             // First job in the chain so increment the counter.
             Interlocked.Increment(ref _jobSetCounter);
-            
-            GlobalThreadPool.QueueWorkItem(new GenerationJob(_jobSetCounter, this, _generationCallback));
-            _state = ChunkState.TerrainGeneration;
+            _lightPass = LightPass.None;
+            QueueLightPass(LightPass.First);
+        }
+        
+        /// <summary>
+        /// Unloads this chunk from rendering.
+        /// </summary>
+        private void Unload() {
+            _state = ChunkState.Inactive;
+            _meshRenderer.enabled = false;
         }
         
         /// <summary>
@@ -209,7 +226,7 @@ namespace VektorVoxels.Chunks {
                     break;
                 }
                 case LightPass.First: {
-                    GlobalThreadPool.QueueWorkItem(
+                    GlobalThreadPool.DispatchJob(
                         new LightJob(
                             _jobSetCounter, 
                             this, 
@@ -221,7 +238,7 @@ namespace VektorVoxels.Chunks {
                     break;
                 }
                 case LightPass.Second: {
-                    GlobalThreadPool.QueueWorkItem(
+                    GlobalThreadPool.DispatchJob(
                         new LightJob(
                             _jobSetCounter, 
                             this, 
@@ -233,7 +250,7 @@ namespace VektorVoxels.Chunks {
                     break;
                 }
                 case LightPass.Third: {
-                    GlobalThreadPool.QueueWorkItem(
+                    GlobalThreadPool.DispatchJob(
                         new LightJob(
                             _jobSetCounter, 
                             this, 
@@ -253,7 +270,7 @@ namespace VektorVoxels.Chunks {
         }
         
         private void QueueMeshPass() {
-            GlobalThreadPool.QueueWorkItem(
+            GlobalThreadPool.DispatchJob(
                 new MeshJob(
                     _jobSetCounter, 
                     this, 
@@ -265,17 +282,26 @@ namespace VektorVoxels.Chunks {
             _state = ChunkState.Meshing;
         }
         
+        /// <summary>
+        /// Called when the generation pass has completed..
+        /// </summary>
         private void OnGenerationPassComplete() {
             _lightPass = LightPass.None;
             QueueLightPass(LightPass.First);
         }
-
+        
+        /// <summary>
+        /// Called when a lighting pass has completed.
+        /// </summary>
         private void OnLightPassComplete(LightPass pass) {
             Debug.Assert(pass > _lightPass);
             _lightPass = pass;
             _state = ChunkState.WaitingForNeighbors;
         }
-
+        
+        /// <summary>
+        /// Called when a mesh pass has completed.
+        /// </summary>
         private void OnMeshPassComplete() {
             _waitingForJob = false;
             _mesher.SetMeshData(ref _mesh);
@@ -284,7 +310,10 @@ namespace VektorVoxels.Chunks {
             _meshCollider.sharedMesh = _mesh;
             _state = ChunkState.Ready;
         }
-
+        
+        /// <summary>
+        /// Checks neighbors and adds them to the buffer if active.
+        /// </summary>
         private void CheckForNeighborState() {
             _neighborFlags = NeighborFlags.None;
             _partialLoad = false;
@@ -334,36 +363,11 @@ namespace VektorVoxels.Chunks {
         }
 
         private void Update() {
-            switch (_state) {
-                case ChunkState.Uninitialized: {
-                    break;
-                }
-                case ChunkState.TerrainGeneration: {
-                    break;
-                }
-                case ChunkState.WaitingForNeighbors: {
-                    CheckForNeighborState();
-                    break;
-                }
-                case ChunkState.Meshing: {
-                    break;
-                }
-                case ChunkState.Ready: {
-                    //if (Input.GetKeyDown(KeyCode.Space)) {
-                        //_meshRenderer.enabled = false;
-                        //OnGenerationComplete();
-                    //}
-                    break;
-                }
-                case ChunkState.Lighting:
-                    break;
-                case ChunkState.Inactive:
-                    break;
-                default: {
-                    throw new ArgumentOutOfRangeException();
-                }
+            if (_state == ChunkState.WaitingForNeighbors) {
+                CheckForNeighborState();
             }
-
+            
+            // Process chunk event queue once the chunk is ready/inactive and no threads have an active lock.
             if (!_waitingForJob && _state == ChunkState.Ready || _state == ChunkState.Inactive) {
                 if (_threadLock.CurrentReadCount != 0) return;
                 // Process event queue.

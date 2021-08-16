@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Generation;
+using VektorVoxels.Threading;
+using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
     /// <summary>
@@ -93,7 +96,7 @@ namespace VektorVoxels.World {
             );
         }
 
-        private void Awake() {
+        private async void Awake() {
             if (Instance != null) {
                 Debug.LogWarning("Duplicate world manager instance detected! \n" +
                                  "Please ensure only one instance is present per-scene.");
@@ -102,6 +105,9 @@ namespace VektorVoxels.World {
 
             Instance = this;
             
+            // Limit max framerate to 360 cause coil whine is annoying.
+            Application.targetFrameRate = 360;
+
             _generator = FlatGenerator.Default();
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
             _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);

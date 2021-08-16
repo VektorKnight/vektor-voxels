@@ -16,6 +16,7 @@ namespace VektorVoxels.Interaction {
         [SerializeField] private Camera _mainCamera;
 
         [Header("Editing")] 
+        [SerializeField] private LayerMask _selectionMask;
         [SerializeField] private Transform _selector;
         
         private Vector2 _mouseRaw;
@@ -68,12 +69,13 @@ namespace VektorVoxels.Interaction {
             
             _mainCamera.transform.localRotation = Quaternion.Euler(_desiredRotation.x, 0f, 0f);
             
-            var selectionRay = new Ray(_mainCamera.transform.position, _mainCamera.transform.forward);
-            if (Physics.Raycast(selectionRay, out RaycastHit hit, 10f)) {
+            var selectionRay = _mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+            if (Physics.Raycast(selectionRay, out RaycastHit hit, 10f, _selectionMask)) {
+                Debug.DrawLine(selectionRay.origin, hit.point, Color.cyan);
                 _selector.transform.position = new Vector3(
-                    Mathf.RoundToInt(hit.point.x) - 0.5f,
-                    Mathf.RoundToInt(hit.point.y) - 0.5f,
-                    Mathf.RoundToInt(hit.point.z) - 0.5f
+                    Mathf.FloorToInt(hit.point.x) + 0.5f,
+                    Mathf.FloorToInt(hit.point.y) + 0.5f,
+                    Mathf.FloorToInt(hit.point.z) + 0.5f
                 );
             }
         }
