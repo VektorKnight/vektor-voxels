@@ -1,6 +1,7 @@
 ﻿// Copyright 2021, Derek de la Peza (aka VektorKnight)
 // The following code is subject to the license terms defined in LICENSE.md
 
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.Remoting.Metadata.W3cXsd2001;
@@ -15,7 +16,7 @@ namespace VektorVoxels.Meshing {
     /// <summary>
     /// Performs Minecraft-style cubic meshing of a voxel grid.
     /// </summary>
-    public class CubicMesher {
+    public class VisualMeshGenerator {
         public const int ATLAS_SIZE = 256;
         public const int TEXTURE_SIZE = 16;
         public const float TEX_UV_WIDTH = 1f / (ATLAS_SIZE / TEXTURE_SIZE);
@@ -42,7 +43,7 @@ namespace VektorVoxels.Meshing {
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.UNorm8, 4)
         };
 
-        public CubicMesher() {
+        public VisualMeshGenerator() {
             _vertices = new List<Vertex>();
             _trianglesA = new List<int>();
             _trianglesB = new List<int>();
@@ -94,51 +95,62 @@ namespace VektorVoxels.Meshing {
                 l = new LightData(Color16.White(), Color16.Clear());
                 return;
             }
+            
+            // Determine which neighbor the voxel lies in.
+            var offsetFlags = NeighborOffset.None;
+            offsetFlags |= p.z >= d.x ? NeighborOffset.North : NeighborOffset.None;
+            offsetFlags |= p.x >= d.x ? NeighborOffset.East : NeighborOffset.None;
+            offsetFlags |= p.z < 0 ? NeighborOffset.South : NeighborOffset.None;
+            offsetFlags |= p.x < 0 ? NeighborOffset.West : NeighborOffset.None;
 
-            var north = p.z >= d.x;
-            var east = p.x >= d.x;
-            var south = p.z < 0;
-            var west = p.x < 0;
-
-            if (north && !(east || west)) {
-                exists = (n.Flags & NeighborFlags.North) != 0;
-                neighbor = n.North;
-                nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
-            }
-            else if (north && east) {
-                exists = (n.Flags & NeighborFlags.NorthEast) != 0;
-                neighbor = n.NorthEast;
-                nvi = VoxelUtility.VoxelIndex(0, p.y, 0, d);
-            }
-            else if (east && !south) {
-                exists = (n.Flags & NeighborFlags.East) != 0;
-                neighbor = n.East;
-                nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
-            }
-            else if (south && east) {
-                exists = (n.Flags & NeighborFlags.SouthEast) != 0;
-                neighbor = n.SouthEast;
-                nvi = VoxelUtility.VoxelIndex(0, p.y, d.x - 1, d);
-            }
-            else if (south && !west) {
-                exists = (n.Flags & NeighborFlags.South) != 0;
-                neighbor = n.South;
-                nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.x - 1, d);
-            }
-            else if (south && west) {
-                exists = (n.Flags & NeighborFlags.SouthWest) != 0;
-                neighbor = n.SouthWest;
-                nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, d.x - 1, d);
-            }
-            else if (west && !north) {
-                exists = (n.Flags & NeighborFlags.West) != 0;
-                neighbor = n.West;
-                nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
-            }
-            else {
-                exists = (n.Flags & NeighborFlags.NorthWest) != 0;
-                neighbor = n.NorthWest;
-                nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, 0, d);
+            switch (offsetFlags) {
+                case NeighborOffset.North:
+                    exists = (n.Flags & NeighborFlags.North) != 0;
+                    neighbor = n.North;
+                    nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
+                    break;
+                case NeighborOffset.East:
+                    exists = (n.Flags & NeighborFlags.East) != 0;
+                    neighbor = n.East;
+                    nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
+                    break;
+                case NeighborOffset.South:
+                    exists = (n.Flags & NeighborFlags.South) != 0;
+                    neighbor = n.South;
+                    nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.x - 1, d);
+                    break;
+                case NeighborOffset.West:
+                    exists = (n.Flags & NeighborFlags.West) != 0;
+                    neighbor = n.West;
+                    nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
+                    break;
+                case NeighborOffset.NorthEast:
+                    exists = (n.Flags & NeighborFlags.NorthEast) != 0;
+                    neighbor = n.NorthEast;
+                    nvi = VoxelUtility.VoxelIndex(0, p.y, 0, d);
+                    break;
+                case NeighborOffset.SouthEast:
+                    exists = (n.Flags & NeighborFlags.SouthEast) != 0;
+                    neighbor = n.SouthEast;
+                    nvi = VoxelUtility.VoxelIndex(0, p.y, d.x - 1, d);
+                    break;
+                case NeighborOffset.SouthWest:
+                    exists = (n.Flags & NeighborFlags.SouthWest) != 0;
+                    neighbor = n.SouthWest;
+                    nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, d.x - 1, d);
+                    break;
+                case NeighborOffset.NorthWest:
+                    exists = (n.Flags & NeighborFlags.NorthWest) != 0;
+                    neighbor = n.NorthWest;
+                    nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, 0, d);
+                    break;
+                case NeighborOffset.None:
+                    exists = false;
+                    neighbor = null;
+                    nvi = 0;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
 
             if (exists) {

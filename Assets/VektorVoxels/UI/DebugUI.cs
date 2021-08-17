@@ -52,7 +52,7 @@ namespace VektorVoxels.UI {
             if (!_canvas.enabled) {
                 return;
             }
-            
+
             _frameTimes.ExportData(_frameData);
             
             // Generate the texture.

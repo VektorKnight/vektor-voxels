@@ -5,11 +5,11 @@ namespace VektorVoxels.Voxels {
     /// Configuration flags for a particular voxel.
     /// </summary>
     [Flags]
-    public enum VoxelFlags : ushort {
+    public enum VoxelFlags : byte {
         None = 0,
         AlphaRender = 1,    // Will be rendered with alpha (transparency).
         NoCollision = 2,    // Will not be used for solid collision.
         LightSource = 4,    // Will be considered for lightmapping.
-        Unbreakable = 8,    // Cannot be placed or broken.
+        AllowRotation = 8,  // Voxel can be placed in any orientation.
     }
 }

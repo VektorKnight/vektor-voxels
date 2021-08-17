@@ -12,22 +12,19 @@ namespace VektorVoxels.Generation {
     /// i.e Grass should be the last layer.
     /// </summary>
     public class FlatGenerator : ITerrainGenerator {
-        private int _seaLevel;
-        private VoxelLayer[] _layers;
+        private readonly VoxelLayer[] _layers;
 
-        public FlatGenerator(int seaLevel, VoxelLayer[] layers) {
-            _seaLevel = seaLevel;
+        public FlatGenerator(VoxelLayer[] layers) {
             _layers = layers;
         }
         
         /// <summary>
-        /// Gets a flat generator instance with the default config.
+        /// Creates a flat generator instance with the default config.
         /// - Bedrock: 1
         /// - Stone: 27
         /// - Dirt: 3
         /// - Grass: 1
         /// </summary>
-        /// <returns></returns>
         public static FlatGenerator Default() {
             // Grab voxel definitions.
             var bedrock = VoxelTable.GetVoxelDefinition("bedrock");
@@ -42,7 +39,7 @@ namespace VektorVoxels.Generation {
                 new VoxelLayer(grass.Id, 1),
             };
 
-            return new FlatGenerator(32, layers);
+            return new FlatGenerator(layers);
         }
 
         public void ProcessChunk(in Chunk chunk) {

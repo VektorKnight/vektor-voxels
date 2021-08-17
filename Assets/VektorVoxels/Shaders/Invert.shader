@@ -8,7 +8,6 @@ Shader "Unlit/Invert" {
         Tags { "RenderType"="Transparent" "Queue"="Transparent" }
         ZWrite Off
         Blend OneMinusDstColor OneMinusSrcAlpha
-        BlendOp Add
 
         Pass {
             CGPROGRAM
@@ -40,7 +39,7 @@ Shader "Unlit/Invert" {
 
             fixed4 frag (v2f i) : SV_Target {
                 // sample the texture
-                fixed4 col = tex2D(_MainTex, i.uv) * _TintColor;
+                fixed4 col = tex2D(_MainTex, i.uv); //* _TintColor;
                 return col;
             }
             ENDCG
