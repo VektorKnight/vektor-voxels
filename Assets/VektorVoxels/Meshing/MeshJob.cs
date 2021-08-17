@@ -11,10 +11,10 @@ namespace VektorVoxels.Meshing {
     public class MeshJob : PoolJob {
         private readonly Chunk _chunk;
         private readonly NeighborSet _neighbors;
-        private readonly CubicMesher _mesher;
+        private readonly VisualMeshGenerator _mesher;
         private readonly Action _callBack;
 
-        public MeshJob(long id, Chunk chunk, NeighborSet neighbors, CubicMesher mesher, Action callBack) : base(id) {
+        public MeshJob(long id, Chunk chunk, NeighborSet neighbors, VisualMeshGenerator mesher, Action callBack) : base(id) {
             _chunk = chunk;
             _neighbors = neighbors;
             _mesher = mesher;
@@ -26,7 +26,7 @@ namespace VektorVoxels.Meshing {
             // Abort the job if the chunk's counter is != the assigned id.
             if (_chunk.JobCounter != Id) {
                 Debug.LogWarning($"Aborting orphaned job with ID: {Id}");
-                CompletionState = JobCompletionState.Aborted;
+                SignalCompletion(JobCompletionState.Aborted);
                 return;
             }
             
@@ -36,7 +36,7 @@ namespace VektorVoxels.Meshing {
             _chunk.ThreadLock.ExitReadLock();
             
             // Signal completion.
-            CompletionState = JobCompletionState.Completed;
+            SignalCompletion(JobCompletionState.Completed);
 
             // Invoke callback on main if specified.
             if (_callBack != null) {

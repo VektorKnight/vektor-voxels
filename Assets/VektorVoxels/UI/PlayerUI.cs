@@ -6,7 +6,7 @@ using VektorVoxels.Voxels;
 
 namespace VektorVoxels.UI {
     [RequireComponent(typeof(Canvas))]
-    public class PlayerUI  : MonoBehaviour {
+    public class PlayerUI : MonoBehaviour {
         [SerializeField] private Image _compass;
 
         [Header("Block Selector")] 
@@ -19,21 +19,33 @@ namespace VektorVoxels.UI {
             CycleHotBar(-3);
         }
 
-        private int RoundRobin(int x, int xMin, int xMax) {
-            if (x < xMin)
-                x = xMax - (xMin - x) % (xMax - xMin);
-            else
-                x = xMin + (x - xMin) % (xMax - xMin);
+        private int WrapIndex(int value, int lower, int upper) {
+            var range_size = upper - lower;
 
-            return x;
+            var wrapped = value;
+
+            if (value < lower) {
+                wrapped += range_size * ((lower - value) / range_size + 1);
+            }
+
+            return lower + (wrapped - lower) % range_size;
         }
 
         private void CycleHotBar(int offset) {
             _selectionOffset += offset;
+            
             for (var i = 0; i < _blockImages.Length; i++) {
-                var voxelId = RoundRobin(_selectionOffset + i, 0, VoxelTable.VoxelCount);
-                _blockImages[i].SetVoxelDefinition(VoxelTable.GetVoxelDefinition((uint)voxelId + 1));
-                _blockImages[i].SetLabelState(i == 3);
+                var voxelId = WrapIndex(_selectionOffset + i, 0, VoxelTable.VoxelCount);
+                try {
+                    _blockImages[i].SetVoxelDefinition(VoxelTable.Voxels[voxelId]);
+                    _blockImages[i].SetLabelState(i == 3);
+                }
+                catch (Exception e) {
+                    Debug.Log($"{voxelId} | {_selectionOffset + i}");
+                    throw;
+                }
+                
+                
             }
         }
 
@@ -46,6 +58,8 @@ namespace VektorVoxels.UI {
             else if (Input.GetKeyDown(KeyCode.RightBracket)) {
                 CycleHotBar(1);
             }
+
+            CycleHotBar(Mathf.RoundToInt(Input.mouseScrollDelta.y));
         }
     }
 }

@@ -24,7 +24,7 @@ namespace VektorVoxels.Lighting {
             // Abort the job if the chunk's counter is != the assigned id.
             if (_chunk.JobCounter != Id) {
                 Debug.LogWarning($"Aborting orphaned job with ID: {Id}");
-                CompletionState = JobCompletionState.Aborted;
+                SignalCompletion(JobCompletionState.Aborted);
                 return;
             }
             
@@ -54,7 +54,7 @@ namespace VektorVoxels.Lighting {
             _chunk.ThreadLock.ExitWriteLock();
             
             // Signal completion.
-            CompletionState = JobCompletionState.Completed;
+            SignalCompletion(JobCompletionState.Completed);
             
             // Invoke callback on main if specified.
             if (_callBack != null) {

@@ -31,6 +31,7 @@ namespace VektorVoxels.Voxels {
             return _runtimeVoxels[id - 1];
         }
 
+        public static VoxelDefinition[] Voxels => _runtimeVoxels;
         public static int VoxelCount => _runtimeVoxels.Length;
         
         /// <summary>
@@ -64,119 +65,119 @@ namespace VektorVoxels.Voxels {
 
         /// <summary>
         /// Define your voxels here.
-        /// Avoid duplicate names.
+        /// Avoid duplicate names or things will explode.
         /// </summary>
         private static readonly VoxelDefinition[] UserVoxels = {
             new VoxelDefinition(
-                "grass",
-                "Grass", 
+                "grass", "Grass", 
                 VoxelFlags.None, 
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(0, 0)
             ),
             new VoxelDefinition(
-                "dirt",
-                "Dirt", 
-                VoxelFlags.None, 
+                "dirt", "Dirt", 
+                VoxelFlags.None,
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(2, 0)
             ),
             new VoxelDefinition(
-                "gravel",
-                "Gravel", 
-                VoxelFlags.None, 
+                "gravel", "Gravel", 
+                VoxelFlags.None,
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(3, 0)
             ),
             new VoxelDefinition(
-                "sand",
-                "Sand", 
-                VoxelFlags.None, 
+                "sand", "Sand", 
+                VoxelFlags.None,
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(4, 0)
             ),
             new VoxelDefinition(
-                "stone",
-                "Stone", 
+                "stone", "Stone", 
                 VoxelFlags.None, 
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(5, 0)
             ),
             new VoxelDefinition(
-                "bedrock",
-                "Bedrock", 
-                VoxelFlags.Unbreakable, 
+                "bedrock", "Bedrock", 
+                VoxelFlags.None, 
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(6, 0)
             ),
             new VoxelDefinition(
-                "glass",
-                "Glass", 
+                "glass", "Glass", 
                 VoxelFlags.AlphaRender, 
+                FacingDirection.North,
                 Color16.Clear(), 
                 new Vector2(0, 6)
             ),
             new VoxelDefinition(
-                "glass_red",
-                "Red Glass", 
+                "glass_red", "Red Glass", 
                 VoxelFlags.AlphaRender, 
+                FacingDirection.North,
                 new Color16(15, 0, 0, 0).ToAttenuation(), 
                 new Vector2(3, 6)
             ),
             new VoxelDefinition(
-                "glass_green",
-                "Green Glass", 
+                "glass_green", "Green Glass", 
                 VoxelFlags.AlphaRender, 
+                FacingDirection.North,
                 new Color16(0, 15, 0, 0).ToAttenuation(), 
                 new Vector2(6, 6)
             ),
             new VoxelDefinition(
-                "glass_blue",
-                "Blue Glass", 
+                "glass_blue", "Blue Glass", 
                 VoxelFlags.AlphaRender, 
+                FacingDirection.North,
                 new Color16(0, 0, 15, 0).ToAttenuation(), 
                 new Vector2(9, 6)
             ),
             new VoxelDefinition(
-                "lightstone",
-                "Lightstone", 
-                VoxelFlags.LightSource, 
+                "lightstone", "Lightstone", 
+                VoxelFlags.LightSource,
+                FacingDirection.North,
                 new Color16(15, 15, 15, 0), 
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "lightstone_red",
-                "Red Lightstone", 
-                VoxelFlags.LightSource, 
-                new Color16(15, 0, 0, 0), 
+                "lightstone_red", "Red Lightstone", 
+                VoxelFlags.LightSource,
+                FacingDirection.North,
+                new Color16(15, 3, 3, 0), 
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "lightstone_green",
-                "Green Lightstone", 
-                VoxelFlags.LightSource, 
-                new Color16(0, 15, 0, 0), 
+                "lightstone_green", "Green Lightstone", 
+                VoxelFlags.LightSource,
+                FacingDirection.North,
+                new Color16(3, 15, 3, 0), 
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "lightstone_blue",
-                "Blue Lightstone", 
-                VoxelFlags.LightSource, 
-                new Color16(0, 0, 15, 0), 
+                "lightstone_blue", "Blue Lightstone", 
+                VoxelFlags.LightSource,
+                FacingDirection.North,
+                new Color16(3, 3, 15, 0), 
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "lightstone_yellow",
-                "Yellow Lightstone", 
-                VoxelFlags.LightSource, 
-                new Color16(15, 15, 0, 0), 
+                "lightstone_yellow", "Yellow Lightstone", 
+                VoxelFlags.LightSource,
+                FacingDirection.North,
+                new Color16(15, 15, 3, 0), 
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "lightstone_purple",
-                "Purple Lightstone", 
-                VoxelFlags.LightSource, 
-                new Color16(15, 0, 15, 0), 
+                "lightstone_purple", "Purple Lightstone", 
+                VoxelFlags.LightSource,
+                FacingDirection.North,
+                new Color16(15, 3, 15, 0), 
                 new Vector2(0, 7)
             ),
         };

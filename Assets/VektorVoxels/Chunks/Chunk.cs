@@ -29,7 +29,7 @@ namespace VektorVoxels.Chunks {
         
         // Lightmapper and mesher instances.
         private LightMapper _lightMapper;
-        private CubicMesher _mesher;
+        private VisualMeshGenerator _mesher;
         private Mesh _mesh;
         private Chunk[] _neighborBuffer;
         private NeighborFlags _neighborFlags;
@@ -112,7 +112,7 @@ namespace VektorVoxels.Chunks {
             _meshCollider.convex = false;
 
             // Mesher and lightmapper.
-            _mesher = new CubicMesher();
+            _mesher = new VisualMeshGenerator();
             _lightMapper = new LightMapper();
             _mesh = new Mesh() {
                 name = $"ChunkMesh-{GetInstanceID()}",

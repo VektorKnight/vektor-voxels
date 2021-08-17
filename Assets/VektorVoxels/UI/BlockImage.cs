@@ -9,7 +9,7 @@ namespace VektorVoxels.UI {
         [SerializeField] private Text _label;
 
         public void SetVoxelDefinition(VoxelDefinition definition) {
-            _image.uvRect = definition.GetTextureRect(BlockSide.North);
+            _image.uvRect = definition.GetTextureRect(FacingDirection.North);
             _label.text = definition.FriendlyName;
         }
 

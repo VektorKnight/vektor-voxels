@@ -12,19 +12,19 @@ namespace VektorVoxels.Meshing {
                 new Vector3(0, 1, 1),
                 new Vector3(0, 0, 1),
             },
-            
-            new [] {
-                new Vector3(0, 0, 0),
-                new Vector3(0, 1, 0),
-                new Vector3(1, 1, 0),
-                new Vector3(1, 0, 0),
-            },
 
             new [] {
                 new Vector3(1, 0, 0),
                 new Vector3(1, 1, 0),
                 new Vector3(1, 1, 1),
                 new Vector3(1, 0, 1),
+            },
+            
+            new [] {
+                new Vector3(0, 0, 0),
+                new Vector3(0, 1, 0),
+                new Vector3(1, 1, 0),
+                new Vector3(1, 0, 0),
             },
 
             new [] {
@@ -71,18 +71,18 @@ namespace VektorVoxels.Meshing {
 
         public static readonly Vector3[] Normals = {
             Vector3.forward,
-            Vector3.back,
             Vector3.right,
+            Vector3.back,
             Vector3.left,
             Vector3.up, 
             Vector3.down
         };
         
-        // Processing order of faces (N, S, E, W, T, B).
+        // Processing order of faces (N, E, S, W, T, B)
         public static readonly Vector3Int[] VoxelNeighbors = {
             new Vector3Int(0, 0, 1),
-            new Vector3Int(0, 0, -1),
             new Vector3Int(1, 0, 0),
+            new Vector3Int(0, 0, -1),
             new Vector3Int(-1, 0, 0),
             new Vector3Int(0, 1, 0),
             new Vector3Int(0, -1, 0)
@@ -100,6 +100,17 @@ namespace VektorVoxels.Meshing {
                 new Vector3Int(1, 0, 0),    // W
                 new Vector3Int(1, 1, 0)     // NW
             },
+
+            new [] {
+                new Vector3Int(0, 1, 0),     // N
+                new Vector3Int(0, 1, 1),     // NE
+                new Vector3Int(0, 0, 1),     // E
+                new Vector3Int(0, -1, 1),    // SE
+                new Vector3Int(0, -1, 0),    // S
+                new Vector3Int(0, -1, -1),   // SW
+                new Vector3Int(0, 0, -1),    // W
+                new Vector3Int(0, 1, -1)     // NW
+            },
             
             new [] {
                 new Vector3Int(0, 1, 0),     // N
@@ -110,17 +121,6 @@ namespace VektorVoxels.Meshing {
                 new Vector3Int(-1, -1, 0),   // SW
                 new Vector3Int(-1, 0, 0),    // W
                 new Vector3Int(-1, 1, 0)     // NW
-            },
-            
-            new [] {
-                new Vector3Int(0, 1, 0),     // N
-                new Vector3Int(0, 1, 1),     // NE
-                new Vector3Int(0, 0, 1),     // E
-                new Vector3Int(0, -1, 1),    // SE
-                new Vector3Int(0, -1, 0),    // S
-                new Vector3Int(0, -1, -1),   // SW
-                new Vector3Int(0, 0, -1),    // W
-                new Vector3Int(0, 1, -1)     // NW
             },
             
             new [] {

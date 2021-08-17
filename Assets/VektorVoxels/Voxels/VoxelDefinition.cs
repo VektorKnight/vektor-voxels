@@ -8,6 +8,7 @@ namespace VektorVoxels.Voxels {
         public readonly string InternalName;
         public readonly string FriendlyName;
         public readonly VoxelFlags Flags;
+        public readonly FacingDirection Orientation;
         public readonly Color16 ColorData;
         
         // Top and Side texture rects.
@@ -18,16 +19,17 @@ namespace VektorVoxels.Voxels {
         /// Use this constructor to define your voxels.
         /// IDs are set automatically by order of definition at runtime.
         /// </summary>
-        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, Color16 colorData, Vector2 atlasIndex) {
+        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, FacingDirection orientation, Color16 colorData, Vector2 atlasIndex) {
             Id = 0;
             InternalName = internalName;
             FriendlyName = friendlyName;
             Flags = flags;
+            Orientation = orientation;
             ColorData = colorData;
             
             // Generate rects for each index.
             TextureRects = new Rect[6];
-            var uvWidth = CubicMesher.TEX_UV_WIDTH;
+            var uvWidth = VisualMeshGenerator.TEX_UV_WIDTH;
             atlasIndex *= uvWidth;
             for (var i = 0; i < 6; i++) {
                 TextureRects[i] = new Rect(
@@ -42,16 +44,17 @@ namespace VektorVoxels.Voxels {
         /// Use this constructor to define your voxels.
         /// IDs are set automatically by order of definition at runtime.
         /// </summary>
-        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, Color16 colorData, Vector2[] atlasIndices) {
+        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, FacingDirection orientation, Color16 colorData, Vector2[] atlasIndices) {
             Id = 0;
             InternalName = internalName;
             FriendlyName = friendlyName;
             Flags = flags;
+            Orientation = orientation;
             ColorData = colorData;
-            
+
             // Generate rects for each index.
             TextureRects = new Rect[6];
-            var uvWidth = CubicMesher.TEX_UV_WIDTH;
+            var uvWidth = VisualMeshGenerator.TEX_UV_WIDTH;
             for (var i = 0; i < 6; i++) {
                 var atlasIndex = atlasIndices[i] * uvWidth;
                 TextureRects[i] = new Rect(
@@ -76,12 +79,21 @@ namespace VektorVoxels.Voxels {
         /// <summary>
         /// Get a VoxelData instance from this voxel definition.
         /// </summary>
-        /// <returns></returns>
         public VoxelData GetDataInstance() {
-            return new VoxelData(Id, Flags, ColorData);
+            return new VoxelData(Id, Flags, Orientation, ColorData);
         }
-
-        public Rect GetTextureRect(BlockSide side) {
+        
+        /// <summary>
+        /// Get a VoxelData instance from this voxel definition with a custom orientation.
+        /// </summary>
+        public VoxelData GetDataInstance(FacingDirection orientation) {
+            return new VoxelData(Id, Flags, orientation, ColorData);
+        }
+        
+        /// <summary>
+        /// Returns the texture atlas rect for the desired face.
+        /// </summary>
+        public Rect GetTextureRect(FacingDirection side) {
             return TextureRects[(int)side];
         }
     }
