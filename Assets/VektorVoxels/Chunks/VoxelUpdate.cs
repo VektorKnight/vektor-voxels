@@ -7,16 +7,11 @@ namespace VektorVoxels.Chunks {
     /// A voxel update to be processed by a chunk.
     /// </summary>
     public readonly struct VoxelUpdate {
-        public readonly int Index;
+        public readonly Vector3Int Position;
         public readonly VoxelData Data;
 
-        public VoxelUpdate(int index, VoxelData data) {
-            Index = index;
-            Data = data;
-        }
-
         public VoxelUpdate(Vector3Int pos, VoxelData data) {
-            Index = VoxelUtility.VoxelIndex(in pos, WorldManager.Instance.ChunkSize);
+            Position = pos;
             Data = data;
         }
     }

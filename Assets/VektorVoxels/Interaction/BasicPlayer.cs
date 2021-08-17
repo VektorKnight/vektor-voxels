@@ -1,5 +1,8 @@
 ﻿using System;
 using UnityEngine;
+using VektorVoxels.Chunks;
+using VektorVoxels.Voxels;
+using VektorVoxels.World;
 
 namespace VektorVoxels.Interaction {
     [RequireComponent(typeof(CharacterController))]
@@ -23,9 +26,7 @@ namespace VektorVoxels.Interaction {
         private Vector2 _mouseSmooth;
         private Vector2 _mouseVel;
         private Vector2 _desiredRotation;
-
         private Vector3 _velocity;
-
         private CharacterController _controller;
 
         private void Awake() {
@@ -74,9 +75,20 @@ namespace VektorVoxels.Interaction {
                 Debug.DrawLine(selectionRay.origin, hit.point, Color.cyan);
                 _selector.transform.position = new Vector3(
                     Mathf.FloorToInt(hit.point.x) + 0.5f,
-                    Mathf.FloorToInt(hit.point.y) + 0.5f,
+                    Mathf.FloorToInt(hit.point.y) - 0.5f,
                     Mathf.FloorToInt(hit.point.z) + 0.5f
                 );
+
+                if (Input.GetKeyDown(KeyCode.Mouse0)) {
+                    if (WorldManager.Instance.TryGetChunk(hit.point, out var chunk)) {
+                        var glowstone = VoxelTable.GetVoxelDefinition("glowstone");
+                        var local = chunk.WorldToLocal(hit.point);
+                        chunk.QueueVoxelUpdate(new VoxelUpdate(local, glowstone.GetDataInstance()));
+                    }
+                }
+            }
+            else {
+                _selector.transform.position = Vector3.down * 1000;
             }
         }
 

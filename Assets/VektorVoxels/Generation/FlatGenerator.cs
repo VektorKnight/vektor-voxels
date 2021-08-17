@@ -34,7 +34,7 @@ namespace VektorVoxels.Generation {
             var stone = VoxelTable.GetVoxelDefinition("stone");
             var dirt = VoxelTable.GetVoxelDefinition("dirt");
             var grass = VoxelTable.GetVoxelDefinition("grass");
-            
+
             var layers = new [] {
                 new VoxelLayer(bedrock.Id, 1),
                 new VoxelLayer(stone.Id, 27),
@@ -71,7 +71,7 @@ namespace VektorVoxels.Generation {
             for (var z = 0; z < d.x; z++) {
                 for (var x = 0; x < d.x; x++) {
                     var hi = VoxelUtility.HeightIndex(x, z, d.x);
-                    chunk.HeightMap[hi] = new HeightData(32, true);
+                    chunk.HeightMap[hi] = new HeightData(31, true);
                 }
             }
         }

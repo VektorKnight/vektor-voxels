@@ -91,12 +91,19 @@ namespace VektorVoxels.World {
         
         public Vector2Int WorldToChunkPos(in Vector3 pos) {
             return new Vector2Int(
-                Mathf.FloorToInt(pos.x) / _chunkSize.x,
-                Mathf.FloorToInt(pos.z) / _chunkSize.x
+                Mathf.FloorToInt(pos.x / _chunkSize.x),
+                Mathf.FloorToInt(pos.z / _chunkSize.x)
             );
         }
 
-        private async void Awake() {
+        public bool TryGetChunk(Vector3 world, out Chunk chunk) {
+            var id = ChunkIdFromPos(WorldToChunkPos(in world));
+
+            chunk = _chunks[id.x, id.y];
+            return IsChunkLoaded(id);
+        }
+
+        private void Awake() {
             if (Instance != null) {
                 Debug.LogWarning("Duplicate world manager instance detected! \n" +
                                  "Please ensure only one instance is present per-scene.");
@@ -141,7 +148,7 @@ namespace VektorVoxels.World {
 
                     var chunk = Instantiate(_chunkPrefab, new Vector3(chunkPos.x, 0, chunkPos.y), Quaternion.identity);
                     chunk.transform.SetParent(transform);
-                    chunk.Initialize(chunkId);
+                    chunk.Initialize(chunkId, ChunkPosFromId(chunkId));
                     //chunk.name = $"Chunk[{chunkId.x},{chunkId.y}]";
                     _chunks[chunkId.x, chunkId.y] = chunk;
                 }
