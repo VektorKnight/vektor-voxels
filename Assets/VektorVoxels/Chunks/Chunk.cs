@@ -222,12 +222,12 @@ namespace VektorVoxels.Chunks {
         /// Executes lighting passes 1-3 then a mesh pass.
         /// Just re-enables the mesh renderer if not dirty or in a partial load state.
         /// </summary>
-        private void Reload() {
+        private void Reload(bool force = false) {
             Debug.Assert(!_waitingForJob, "Reload started while another job was running.");
 
             _waitingForReload = false;
 
-            if (_isDirty || _partialLoad) {
+            if (force || _isDirty || _partialLoad) {
                 // First job in the chain so increment the counter.
                 Interlocked.Increment(ref _jobSetCounter);
                 _waitingForJob = true;
@@ -424,6 +424,10 @@ namespace VektorVoxels.Chunks {
                     }
                     _voxelUpdates.Clear();
                     _isDirty = true;
+                }
+
+                if (Input.GetKeyDown(KeyCode.F5)) {
+                    Reload(true);
                 }
 
                 // Handle flags.

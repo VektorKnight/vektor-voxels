@@ -14,11 +14,11 @@ namespace VektorVoxels.Voxels {
         /// Gets the name of a voxel by its ID.
         /// </summary>
         public static string GetVoxelName(uint id) {
-            return _runtimeVoxels[id - 1].Name.ToLower();
+            return _runtimeVoxels[id - 1].FriendlyName.ToLower();
         }
         
         /// <summary>
-        /// Gets the ID of a voxel by its lower-case name.
+        /// Gets the ID of a voxel by its internal name.
         /// </summary>
         public static uint GetVoxelId(string name) {
             return _nameIdMap[name];
@@ -30,10 +30,11 @@ namespace VektorVoxels.Voxels {
         public static VoxelDefinition GetVoxelDefinition(uint id) {
             return _runtimeVoxels[id - 1];
         }
+
+        public static int VoxelCount => _runtimeVoxels.Length;
         
         /// <summary>
-        /// Tries to find a voxel definition by name.
-        /// Name lookups should always be lower-case.
+        /// Tries to find a voxel definition by internal name.
         /// Do not use this function in any tight loops.
         /// Grab and cache the ID of the voxel you need.
         /// </summary>
@@ -44,7 +45,7 @@ namespace VektorVoxels.Voxels {
 
         private static VoxelDefinition[] _runtimeVoxels;
         private static Dictionary<string, uint> _nameIdMap;
-        
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         private static void Initialize() {
             _runtimeVoxels = new VoxelDefinition[UserVoxels.Length];
@@ -54,7 +55,7 @@ namespace VektorVoxels.Voxels {
             uint id = 1;
             foreach (var userVoxel in UserVoxels) {
                 _runtimeVoxels[id - 1] = new VoxelDefinition(id, userVoxel);
-                _nameIdMap.Add(userVoxel.Name.ToLower(), id);
+                _nameIdMap.Add(userVoxel.InternalName, id);
                 id++;
             }
             
@@ -67,87 +68,115 @@ namespace VektorVoxels.Voxels {
         /// </summary>
         private static readonly VoxelDefinition[] UserVoxels = {
             new VoxelDefinition(
+                "grass",
                 "Grass", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
-                new Vector2(0, 0), 
-                new Vector2(1, 0)
+                new Vector2(0, 0)
             ),
             new VoxelDefinition(
+                "dirt",
                 "Dirt", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
-                new Vector2(2, 0), 
                 new Vector2(2, 0)
             ),
             new VoxelDefinition(
+                "gravel",
                 "Gravel", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
-                new Vector2(3, 0), 
                 new Vector2(3, 0)
             ),
             new VoxelDefinition(
+                "sand",
                 "Sand", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
-                new Vector2(4, 0), 
                 new Vector2(4, 0)
             ),
             new VoxelDefinition(
+                "stone",
                 "Stone", 
                 VoxelFlags.None, 
                 Color16.Clear(), 
-                new Vector2(5, 0), 
                 new Vector2(5, 0)
             ),
             new VoxelDefinition(
+                "bedrock",
                 "Bedrock", 
                 VoxelFlags.Unbreakable, 
                 Color16.Clear(), 
-                new Vector2(6, 0), 
                 new Vector2(6, 0)
             ),
             new VoxelDefinition(
+                "glass",
                 "Glass", 
                 VoxelFlags.AlphaRender, 
                 Color16.Clear(), 
-                new Vector2(0, 6), 
                 new Vector2(0, 6)
             ),
             new VoxelDefinition(
-                "Glass Red", 
+                "glass_red",
+                "Red Glass", 
                 VoxelFlags.AlphaRender, 
                 new Color16(15, 0, 0, 0).ToAttenuation(), 
-                new Vector2(3, 6), 
                 new Vector2(3, 6)
             ),
             new VoxelDefinition(
-                "Glass Green", 
+                "glass_green",
+                "Green Glass", 
                 VoxelFlags.AlphaRender, 
                 new Color16(0, 15, 0, 0).ToAttenuation(), 
-                new Vector2(6, 6), 
                 new Vector2(6, 6)
             ),
             new VoxelDefinition(
-                "Glass Blue", 
+                "glass_blue",
+                "Blue Glass", 
                 VoxelFlags.AlphaRender, 
                 new Color16(0, 0, 15, 0).ToAttenuation(), 
-                new Vector2(9, 6), 
                 new Vector2(9, 6)
             ),
             new VoxelDefinition(
-                "Glowstone", 
+                "lightstone",
+                "Lightstone", 
                 VoxelFlags.LightSource, 
-                new Color16(15, 0, 0, 0), 
-                new Vector2(0, 7), 
+                new Color16(15, 15, 15, 0), 
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "Bluestone", 
+                "lightstone_red",
+                "Red Lightstone", 
+                VoxelFlags.LightSource, 
+                new Color16(15, 0, 0, 0), 
+                new Vector2(0, 7)
+            ),
+            new VoxelDefinition(
+                "lightstone_green",
+                "Green Lightstone", 
+                VoxelFlags.LightSource, 
+                new Color16(0, 15, 0, 0), 
+                new Vector2(0, 7)
+            ),
+            new VoxelDefinition(
+                "lightstone_blue",
+                "Blue Lightstone", 
                 VoxelFlags.LightSource, 
                 new Color16(0, 0, 15, 0), 
-                new Vector2(0, 7), 
+                new Vector2(0, 7)
+            ),
+            new VoxelDefinition(
+                "lightstone_yellow",
+                "Yellow Lightstone", 
+                VoxelFlags.LightSource, 
+                new Color16(15, 15, 0, 0), 
+                new Vector2(0, 7)
+            ),
+            new VoxelDefinition(
+                "lightstone_purple",
+                "Purple Lightstone", 
+                VoxelFlags.LightSource, 
+                new Color16(15, 0, 15, 0), 
                 new Vector2(0, 7)
             ),
         };
