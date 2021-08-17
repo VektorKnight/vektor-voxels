@@ -10,6 +10,12 @@ namespace VektorVoxels.Chunks {
         North = 1,
         East = 2,
         South = 4,
-        West = 8
+        West = 8,
+        
+        // Corner neighbors are separate cause only the mesher needs them.
+        NorthEast = 16,
+        SouthEast = 32,
+        SouthWest = 64,
+        NorthWest = 128
     }
 }

@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.Remoting.Metadata.W3cXsd2001;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VektorVoxels.Chunks;
@@ -79,6 +80,7 @@ namespace VektorVoxels.Meshing {
         
         /// <summary>
         /// Fetches data from a neighbor depending on position and if the neighbor was provided.
+        /// This function might give you a stroke.
         /// </summary>
         private static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, out VoxelData v, out LightData l) {
             Chunk neighbor;
@@ -91,29 +93,53 @@ namespace VektorVoxels.Meshing {
                 l = new LightData(Color16.White(), Color16.Clear());
                 return;
             }
-            
-            // Determine which neighbor to pull data from.
-            if (p.x >= 0 && p.x < d.x && p.z >= d.x) {
+
+            var north = p.z >= d.x;
+            var east = p.x >= d.x;
+            var south = p.z < 0;
+            var west = p.x < 0;
+
+            if (north && !(east || west)) {
                 exists = (n.Flags & NeighborFlags.North) != 0;
                 neighbor = n.North;
                 nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
             }
-            else if (p.x >= d.x && p.z >= 0 && p.z < d.x) {
+            else if (north && east) {
+                exists = (n.Flags & NeighborFlags.NorthEast) != 0;
+                neighbor = n.NorthEast;
+                nvi = VoxelUtility.VoxelIndex(0, p.y, 0, d);
+            }
+            else if (east && !south) {
                 exists = (n.Flags & NeighborFlags.East) != 0;
                 neighbor = n.East;
                 nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
             }
-            else if (p.x >= 0 && p.x < d.x && p.z < 0) {
+            else if (south && east) {
+                exists = (n.Flags & NeighborFlags.SouthEast) != 0;
+                neighbor = n.SouthEast;
+                nvi = VoxelUtility.VoxelIndex(0, p.y, d.x - 1, d);
+            }
+            else if (south && !west) {
                 exists = (n.Flags & NeighborFlags.South) != 0;
                 neighbor = n.South;
                 nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.x - 1, d);
             }
-            else {
+            else if (south && west) {
+                exists = (n.Flags & NeighborFlags.SouthWest) != 0;
+                neighbor = n.SouthWest;
+                nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, d.x - 1, d);
+            }
+            else if (west && !north) {
                 exists = (n.Flags & NeighborFlags.West) != 0;
                 neighbor = n.West;
                 nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
             }
-            
+            else {
+                exists = (n.Flags & NeighborFlags.NorthWest) != 0;
+                neighbor = n.NorthWest;
+                nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, 0, d);
+            }
+
             if (exists) {
                 v = neighbor.VoxelData[nvi];
                 l = new LightData(neighbor.SunLight[nvi], neighbor.BlockLight[nvi]);

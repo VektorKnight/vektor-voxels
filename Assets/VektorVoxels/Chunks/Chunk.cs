@@ -36,6 +36,7 @@ namespace VektorVoxels.Chunks {
         
         // World data.
         private Vector2Int _chunkId;
+        private Vector2Int _chunkPos;
         private VoxelData[] _voxelData;
         private Color16[] _sunLight;
         private Color16[] _blockLight;
@@ -49,6 +50,9 @@ namespace VektorVoxels.Chunks {
         private ChunkState _state;
         private bool _waitingForJob;
         private bool _partialLoad;
+        private bool _waitingForReload, _waitingForUnload;
+        private bool _isDirty;
+        
         private LightPass _lightPass;
 
         // Job callbacks.
@@ -61,10 +65,15 @@ namespace VektorVoxels.Chunks {
         private ReaderWriterLockSlim _threadLock;
         
         private static readonly Vector2Int[] _chunkNeighbors = {
-            Vector2Int.up, 
-            Vector2Int.right, 
-            Vector2Int.down, 
-            Vector2Int.left,
+            new Vector2Int(0, 1),
+            new Vector2Int(1, 0),
+            new Vector2Int(0, -1),
+            new Vector2Int(-1, 0),
+            
+            new Vector2Int(1, 1),
+            new Vector2Int(1, -1),
+            new Vector2Int(-1, -1),
+            new Vector2Int(-1, 1)
         };
         
         // Useful accessors.
@@ -85,8 +94,9 @@ namespace VektorVoxels.Chunks {
         /// Should only be called by the WorldManager instance.
         /// </summary>
         /// <param name="id"></param>
-        public void Initialize(Vector2Int id) {
+        public void Initialize(Vector2Int id, Vector2Int pos) {
             _chunkId = id;
+            _chunkPos = pos;
             
             // Reference required components.
             _meshFilter = GetComponent<MeshFilter>();
@@ -109,7 +119,7 @@ namespace VektorVoxels.Chunks {
                 indexFormat = IndexFormat.UInt32
             };
             
-            _neighborBuffer = new Chunk[4];
+            _neighborBuffer = new Chunk[8];
             _meshFilter.mesh = _mesh;
             _meshCollider.sharedMesh = _mesh;
             
@@ -131,6 +141,7 @@ namespace VektorVoxels.Chunks {
             // Thread safety.
             _threadLock = new ReaderWriterLockSlim();
             _eventQueue = new ConcurrentQueue<ChunkEvent>();
+            _voxelUpdates = new List<VoxelUpdate>();
             
             // Register with world events.
             WorldManager.OnWorldEvent += WorldEventHandler;
@@ -138,36 +149,47 @@ namespace VektorVoxels.Chunks {
             // Queue generation pass.
             QueueGenerationPass();
         }
+
+        public Vector3Int WorldToLocal(Vector3 world) {
+            var d = WorldManager.Instance.ChunkSize;
+            return new Vector3Int(
+                Mathf.FloorToInt(world.x - transform.position.x),
+                Mathf.FloorToInt(world.y),
+                Mathf.FloorToInt(world.z - transform.position.z)
+            );
+        }
+
+        public void QueueVoxelUpdate(VoxelUpdate update) {
+            _voxelUpdates.Add(update);
+        }
         
         /// <summary>
         /// Processes events from the world manager.
         /// </summary>
         private void WorldEventHandler(WorldEvent e) {
-            _threadLock.EnterReadLock();
             switch (e) {
                 case WorldEvent.LoadRegionChanged:
                     var inView = WorldManager.Instance.IsChunkInView(_chunkId);
 
                     if (!inView) {
-                        _eventQueue.Enqueue(ChunkEvent.Unload);
-                        _threadLock.ExitReadLock();
+                        _waitingForUnload = true;
+                        _waitingForReload = false;
                         return;
                     }
                     else if (_state == ChunkState.Inactive) {
-                        _eventQueue.Enqueue(ChunkEvent.Reload);
-                        _threadLock.ExitReadLock();
+                        _waitingForUnload = false;
+                        _waitingForReload = true;
                         return;
                     }
                     
                     if (_partialLoad && _state == ChunkState.Ready) {
-                        _partialLoad = false;
-                        _eventQueue.Enqueue(ChunkEvent.Reload);
+                        _waitingForUnload = false;
+                        _waitingForReload = true;
                     }
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(e), e, null);
             }
-            _threadLock.ExitReadLock();
         }
         
         /// <summary>
@@ -198,21 +220,31 @@ namespace VektorVoxels.Chunks {
         /// <summary>
         /// Reloads this chunk.
         /// Executes lighting passes 1-3 then a mesh pass.
+        /// Just re-enables the mesh renderer if not dirty or in a partial load state.
         /// </summary>
         private void Reload() {
             Debug.Assert(!_waitingForJob, "Reload started while another job was running.");
-            _waitingForJob = true;
-            
-            // First job in the chain so increment the counter.
-            Interlocked.Increment(ref _jobSetCounter);
-            _lightPass = LightPass.None;
-            QueueLightPass(LightPass.First);
+
+            _waitingForReload = false;
+
+            if (_isDirty || _partialLoad) {
+                // First job in the chain so increment the counter.
+                Interlocked.Increment(ref _jobSetCounter);
+                _waitingForJob = true;
+                _lightPass = LightPass.None;
+                QueueLightPass(LightPass.First);
+            }
+            else {
+                _meshRenderer.enabled = true;
+                _state = ChunkState.Ready;
+            }
         }
         
         /// <summary>
         /// Unloads this chunk from rendering.
         /// </summary>
         private void Unload() {
+            _waitingForUnload = false;
             _state = ChunkState.Inactive;
             _meshRenderer.enabled = false;
         }
@@ -222,9 +254,6 @@ namespace VektorVoxels.Chunks {
         /// </summary>
         private void QueueLightPass(LightPass pass) {
             switch (pass) {
-                case LightPass.None: {
-                    break;
-                }
                 case LightPass.First: {
                     GlobalThreadPool.DispatchJob(
                         new LightJob(
@@ -286,6 +315,7 @@ namespace VektorVoxels.Chunks {
         /// Called when the generation pass has completed..
         /// </summary>
         private void OnGenerationPassComplete() {
+            _isDirty = true;
             _lightPass = LightPass.None;
             QueueLightPass(LightPass.First);
         }
@@ -306,8 +336,13 @@ namespace VektorVoxels.Chunks {
             _waitingForJob = false;
             _mesher.SetMeshData(ref _mesh);
             _meshRenderer.enabled = true;
-            _meshCollider.enabled = true;
-            _meshCollider.sharedMesh = _mesh;
+
+            if (_isDirty) {
+                _meshCollider.sharedMesh = _mesh;
+                _isDirty = false;
+            }
+
+            // Clear flags.
             _state = ChunkState.Ready;
         }
         
@@ -317,7 +352,7 @@ namespace VektorVoxels.Chunks {
         private void CheckForNeighborState() {
             _neighborFlags = NeighborFlags.None;
             _partialLoad = false;
-            for (var i = 0; i < 4; i++) {
+            for (var i = 0; i < 8; i++) {
                 _neighborBuffer[i] = null;
                 var neighborId = _chunkId + _chunkNeighbors[i];
                 
@@ -346,8 +381,6 @@ namespace VektorVoxels.Chunks {
             
             // Queue lighting or mesh passes based on state.
             switch (_lightPass) {
-                case LightPass.None:
-                    break;
                 case LightPass.First:
                     QueueLightPass(LightPass.Second);
                     break;
@@ -365,15 +398,41 @@ namespace VektorVoxels.Chunks {
         private void Update() {
             if (_state == ChunkState.WaitingForNeighbors) {
                 CheckForNeighborState();
+                return;
             }
             
             // Process chunk event queue once the chunk is ready/inactive and no threads have an active lock.
             if (!_waitingForJob && _state == ChunkState.Ready || _state == ChunkState.Inactive) {
-                if (_threadLock.CurrentReadCount != 0) return;
+                if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
+                
                 // Process event queue.
                 _threadLock.EnterWriteLock();
                 while (_eventQueue.TryDequeue(out var e)) {
                     ProcessChunkEvent(e);
+                }
+                
+                // Process voxel updates.
+                if (_voxelUpdates.Count > 0) {
+                    foreach (var update in _voxelUpdates) {
+                        if (!VoxelUtility.InLocalGrid(update.Position, WorldManager.Instance.ChunkSize)) {
+                            Debug.Log(update.Position);
+                            Debug.Log(_chunkPos);
+                            continue;
+                        }
+
+                        _voxelData[VoxelUtility.VoxelIndex(update.Position, WorldManager.Instance.ChunkSize)] = update.Data;
+                    }
+                    _voxelUpdates.Clear();
+                    _isDirty = true;
+                }
+
+                // Handle flags.
+                if (_waitingForReload || _isDirty) {
+                    Reload();
+                }
+
+                if (_waitingForUnload) {
+                    Unload();
                 }
                 _threadLock.ExitWriteLock();
             }
