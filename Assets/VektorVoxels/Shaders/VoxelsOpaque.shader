@@ -42,7 +42,7 @@ Shader "Voxels/Opaque" {
 
         void surf (Input i, inout SurfaceOutputStandard o) {
             //i.uv_MainTex.x = 1.0 - i.uv_MainTex.x;
-            i.uv_MainTex.y = 1.0 - i.uv_MainTex.y;
+            //i.uv_MainTex.y = 1.0 - i.uv_MainTex.y;
             fixed4 c = tex2D (_MainTex, i.uv_MainTex);
             o.Albedo = c.rgb;
 

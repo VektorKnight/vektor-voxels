@@ -18,7 +18,7 @@ namespace VektorVoxels.Interaction {
         [SerializeField] private float _mouseSmoothTime = 0.02f;
         [SerializeField] private Camera _mainCamera;
 
-        [Header("Editing")] 
+        [Header("Editing")]
         [SerializeField] private LayerMask _selectionMask;
         [SerializeField] private Transform _selector;
         
@@ -81,7 +81,7 @@ namespace VektorVoxels.Interaction {
 
                 if (Input.GetKeyDown(KeyCode.Mouse0)) {
                     if (WorldManager.Instance.TryGetChunk(hit.point, out var chunk)) {
-                        var glowstone = VoxelTable.GetVoxelDefinition("glowstone");
+                        var glowstone = VoxelTable.GetVoxelDefinition("lightstone_green");
                         var local = chunk.WorldToLocal(hit.point);
                         chunk.QueueVoxelUpdate(new VoxelUpdate(local, glowstone.GetDataInstance()));
                     }

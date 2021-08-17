@@ -16,8 +16,9 @@ namespace VektorVoxels.Meshing {
     /// Performs Minecraft-style cubic meshing of a voxel grid.
     /// </summary>
     public class CubicMesher {
+        public const int ATLAS_SIZE = 256;
         public const int TEXTURE_SIZE = 16;
-        public const float TEX_UV_WIDTH = 1f / TEXTURE_SIZE;
+        public const float TEX_UV_WIDTH = 1f / (ATLAS_SIZE / TEXTURE_SIZE);
         
         // Resulting mesh data.
         private readonly List<Vertex> _vertices;
@@ -227,6 +228,8 @@ namespace VektorVoxels.Meshing {
                         // Skip if voxel is null.
                         if (voxel.Id == 0) continue;
                         
+                        var voxelDef = VoxelTable.GetVoxelDefinition(voxel.Id);
+                        
                         // Iterate each neighbor and determine if a face should be added.
                         // TODO: Handle data from neighboring chunks.
                         for (var i = 0; i < 6; i++) {
@@ -275,14 +278,16 @@ namespace VektorVoxels.Meshing {
                             }
                             
                             // Generate UV coordinates from voxel table.
-                            var origin = i == 4 || i == 5
-                                ? VoxelTable.GetVoxelDefinition(voxel.Id).AtlasA * TEX_UV_WIDTH
-                                : VoxelTable.GetVoxelDefinition(voxel.Id).AtlasB * TEX_UV_WIDTH;
-                            
-                            _uvWorkBuffer[0] = new Vector2(origin.x, origin.y + TEX_UV_WIDTH);
-                            _uvWorkBuffer[1] = new Vector2(origin.x, origin.y);
-                            _uvWorkBuffer[2] = new Vector2(origin.x + TEX_UV_WIDTH, origin.y);
-                            _uvWorkBuffer[3] = new Vector2(origin.x + TEX_UV_WIDTH, origin.y + TEX_UV_WIDTH);
+                            //var origin = i == 4 || i == 5
+                                //? VoxelTable.GetVoxelDefinition(voxel.Id).AtlasA * TEX_UV_WIDTH
+                                //: VoxelTable.GetVoxelDefinition(voxel.Id).AtlasB * TEX_UV_WIDTH;
+
+                            var rect = voxelDef.TextureRects[i];
+
+                            _uvWorkBuffer[0] = new Vector2(rect.position.x, rect.yMax);
+                            _uvWorkBuffer[1] = rect.position;
+                            _uvWorkBuffer[2] = new Vector2(rect.xMax, rect.position.y);
+                            _uvWorkBuffer[3] = rect.max;
                             
                             // Transform and add face vertex data.
                             // Vertex count pre-copy is stored for triangles later.
