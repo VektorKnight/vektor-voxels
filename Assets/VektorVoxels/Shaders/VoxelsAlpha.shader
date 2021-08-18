@@ -32,7 +32,7 @@ Shader "Voxels/AlphaBlended"
         half _Metallic;
 
         void surf (Input IN, inout SurfaceOutputStandard o) {
-            IN.uv_MainTex.y = 1.0 - IN.uv_MainTex.y;
+            //IN.uv_MainTex.y = 1.0 - IN.uv_MainTex.y;
             // Albedo comes from a texture tinted by color
             fixed4 c = tex2D (_MainTex, IN.uv_MainTex);
             o.Albedo = c.rgb;

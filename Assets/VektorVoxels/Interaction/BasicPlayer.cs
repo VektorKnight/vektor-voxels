@@ -1,12 +1,14 @@
 ﻿using System;
 using UnityEngine;
 using VektorVoxels.Chunks;
+using VektorVoxels.UI;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
+using Random = UnityEngine.Random;
 
 namespace VektorVoxels.Interaction {
     [RequireComponent(typeof(CharacterController))]
-    public class BasicPlayer : MonoBehaviour {
+    public class BasicPlayer : MonoBehaviour, IPlayer {
         [Header("Movement")] 
         [SerializeField] private float _moveSpeed = 5f;
         [SerializeField] private float _thrustMultiplier = 2f;
@@ -21,7 +23,10 @@ namespace VektorVoxels.Interaction {
         [Header("Editing")]
         [SerializeField] private LayerMask _selectionMask;
         [SerializeField] private Transform _selector;
-        
+
+        [Header("UI Stuff")] 
+        [SerializeField] private PlayerUI _playerUIPrefab;
+
         private Vector2 _mouseRaw;
         private Vector2 _mouseSmooth;
         private Vector2 _mouseVel;
@@ -29,9 +34,26 @@ namespace VektorVoxels.Interaction {
         private Vector3 _velocity;
         private CharacterController _controller;
 
+        private PlayerUI _playerUI;
+        private VoxelDefinition _handVoxel;
+        
+        public Vector3 Position => transform.position;
+        public Vector3 Rotation => transform.rotation.eulerAngles;
+
+        public void SetHandVoxel(VoxelDefinition definition) {
+            _handVoxel = definition;
+        }
+
+        public void Teleport(Vector3 position) {
+            transform.position = position;
+        }
+
         private void Awake() {
             _controller = GetComponent<CharacterController>();
             Cursor.lockState = CursorLockMode.Locked;
+
+            _playerUI = Instantiate(_playerUIPrefab, Vector3.zero, Quaternion.identity);
+            _playerUI.Initialize(this);
         }
 
         private void Update() {
@@ -73,27 +95,23 @@ namespace VektorVoxels.Interaction {
             var selectionRay = _mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
             if (Physics.Raycast(selectionRay, out RaycastHit hit, 10f, _selectionMask)) {
                 Debug.DrawLine(selectionRay.origin, hit.point, Color.cyan);
-                _selector.transform.position = new Vector3(
-                    Mathf.FloorToInt(hit.point.x) + 0.5f,
-                    Mathf.FloorToInt(hit.point.y) - 0.5f,
-                    Mathf.FloorToInt(hit.point.z) + 0.5f
-                );
+                
+                if (WorldManager.Instance.TryGetChunk(hit.point, out var chunk)) {
+                    var selected = chunk.WorldToLocal(hit.point - (hit.normal * 0.1f));
+                    var placement = chunk.WorldToLocal(hit.point + (hit.normal * 0.1f));
+                    _selector.transform.position = chunk.LocalToWorld(selected) + new Vector3(0.5f, 0.5f, 0.5f);
 
-                if (Input.GetKeyDown(KeyCode.Mouse0)) {
-                    if (WorldManager.Instance.TryGetChunk(hit.point, out var chunk)) {
-                        var glowstone = VoxelTable.GetVoxelDefinition("lightstone_green");
-                        var local = chunk.WorldToLocal(hit.point);
-                        chunk.QueueVoxelUpdate(new VoxelUpdate(local, glowstone.GetDataInstance()));
+                    if (Input.GetKeyDown(KeyCode.Mouse0)) {
+                        chunk.QueueVoxelUpdate(new VoxelUpdate(placement, _handVoxel.GetDataInstance()));
+                    }
+                    else if (Input.GetKeyDown(KeyCode.Mouse1)) {
+                        chunk.QueueVoxelUpdate(new VoxelUpdate(selected, VoxelData.Null()));
                     }
                 }
             }
             else {
                 _selector.transform.position = Vector3.down * 1000;
             }
-        }
-
-        private void FixedUpdate() {
-            
         }
     }
 }

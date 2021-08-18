@@ -7,16 +7,18 @@ using VektorVoxels.Voxels;
 namespace VektorVoxels.UI {
     [RequireComponent(typeof(Canvas))]
     public class PlayerUI : MonoBehaviour {
+        [Header("UI Objects")]
         [SerializeField] private Image _compass;
-
-        [Header("Block Selector")] 
         [SerializeField] private BlockImage[] _blockImages = new BlockImage[7];
-        [SerializeField] private BasicPlayer _player;
-
+        
         private int _selectionOffset;
+        private IPlayer _player;
+        private bool _initialized;
 
-        private void Awake() {
+        public void Initialize(IPlayer player) {
+            _player = player;
             CycleHotBar(-3);
+            _initialized = true;
         }
 
         private int WrapIndex(int value, int lower, int upper) {
@@ -39,18 +41,22 @@ namespace VektorVoxels.UI {
                 try {
                     _blockImages[i].SetVoxelDefinition(VoxelTable.Voxels[voxelId]);
                     _blockImages[i].SetLabelState(i == 3);
+
+                    if (i == 3) {
+                        _player.SetHandVoxel(VoxelTable.Voxels[voxelId]);
+                    }
                 }
                 catch (Exception e) {
                     Debug.Log($"{voxelId} | {_selectionOffset + i}");
                     throw;
                 }
-                
-                
             }
         }
 
         private void Update() {
-            _compass.rectTransform.rotation = Quaternion.Euler(0, 0, _player.transform.rotation.eulerAngles.y);
+            if (!_initialized) return;
+            
+            _compass.rectTransform.rotation = Quaternion.Euler(0, 0, _player.Rotation.y);
 
             if (Input.GetKeyDown(KeyCode.LeftBracket)) {
                 CycleHotBar(-1);

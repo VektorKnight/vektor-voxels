@@ -334,7 +334,8 @@ namespace VektorVoxels.Lighting {
             for (var y = 0; y < d.y; y++) {
                 for (var z = 0; z < d.x; z++) {
                     for (var x = 0; x < d.x; x++) {
-                        ref readonly var voxel = ref voxelData[x + d.x * (y + d.y * z)];
+                        var voxel = voxelData[VoxelUtility.VoxelIndex(x, y, z, d)];
+                        chunk.BlockLight[VoxelUtility.VoxelIndex(x, y, z, d)] = Color16.Clear();
                         if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
                 
                         _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), voxel.ColorData));

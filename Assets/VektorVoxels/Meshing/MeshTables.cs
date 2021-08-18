@@ -62,12 +62,12 @@ namespace VektorVoxels.Meshing {
             0, 1, 3
         };
 
-        public static readonly Vector2[] UVs = {
+        /*public static readonly Vector2[] UVs = {
             new Vector2(0, 0),
             new Vector2(0, 1),
             new Vector2(1, 1),
             new Vector2(1, 0)
-        };
+        };*/
 
         public static readonly Vector3[] Normals = {
             Vector3.forward,
@@ -160,7 +160,7 @@ namespace VektorVoxels.Meshing {
         /// <summary>
         /// Returns a cube composed of the mesh data defined previously for testing purposes.
         /// </summary>
-        public static Mesh GetTestCube() {
+        /*public static Mesh GetTestCube() {
             var mesh = new Mesh() {
                 indexFormat = IndexFormat.UInt32
             };
@@ -200,6 +200,6 @@ namespace VektorVoxels.Meshing {
             }
             
             return mesh;
-        }
+        }*/
     }
 }

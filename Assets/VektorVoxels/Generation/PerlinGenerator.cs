@@ -1,5 +1,7 @@
-﻿using VektorVoxels.Chunks;
+﻿using UnityEngine;
+using VektorVoxels.Chunks;
 using VektorVoxels.Voxels;
+using VektorVoxels.World;
 
 namespace VektorVoxels.Generation {
     /// <summary>
@@ -8,9 +10,11 @@ namespace VektorVoxels.Generation {
     public class PerlinGenerator : ITerrainGenerator {
         private readonly VoxelLayer[] _layers;
         private readonly int _maxHeight;
+        private readonly float _noiseScale;
 
-        public PerlinGenerator(VoxelLayer[] layers) {
+        public PerlinGenerator(VoxelLayer[] layers, float noiseScale = 0.25f) {
             _layers = layers;
+            _noiseScale = noiseScale;
             
             // Determine max height as the sum of all layers.
             var maxHeight = 0;
@@ -18,6 +22,7 @@ namespace VektorVoxels.Generation {
                 maxHeight += layer.Thickness;
             }
             _maxHeight = maxHeight;
+            
         }
         
         /// <summary>
@@ -35,17 +40,52 @@ namespace VektorVoxels.Generation {
             var grass = VoxelTable.GetVoxelDefinition("grass");
 
             var layers = new [] {
-                new VoxelLayer(bedrock.Id, 1),
-                new VoxelLayer(stone.Id, 27),
-                new VoxelLayer(dirt.Id, 3),
                 new VoxelLayer(grass.Id, 1),
+                new VoxelLayer(dirt.Id, 3),
+                new VoxelLayer(stone.Id, 27),
+                new VoxelLayer(bedrock.Id, 1),
             };
 
-            return new PerlinGenerator(layers);
+            return new PerlinGenerator(layers, 0.02f);
         }
         
         public void ProcessChunk(in Chunk chunk) {
-            
+            var d = WorldManager.Instance.ChunkSize;
+            var offset = chunk.ChunkId * d.x;
+            for (var z = 0; z < d.x; z++) {
+                for (var x = 0; x < d.x; x++) {
+                    // Grab perlin sample for the current coordinate.
+                    var perlin = Mathf.Clamp01(Mathf.PerlinNoise((x + offset.x) * _noiseScale, (z + offset.y) * _noiseScale));
+                    var height = Mathf.RoundToInt(perlin * _maxHeight);
+                    
+                    // Write heightmap values.
+                    chunk.HeightMap[VoxelUtility.HeightIndex(x, z, d.x)] = new HeightData((uint)height, true);
+
+                    var layerY = height - 1;
+                    foreach (var layer in _layers) {
+                        // Get the voxel data instance for the current layer.
+                        var voxel = VoxelTable.GetVoxelDefinition(layer.VoxelId).GetDataInstance();
+
+                        if (layerY < 0) {
+                            break;
+                        }
+                
+                        // Set voxels for this layer.
+                        for (var y = 0; y < layer.Thickness; y++) {
+                            var vi = VoxelUtility.VoxelIndex(x, layerY - y, z, d);
+
+                            if (layerY - y < 0) {
+                                continue;
+                            }
+                            
+                            chunk.VoxelData[vi] = voxel;
+                        }
+                
+                        // Update starting Y index for the next layer.
+                        layerY -= layer.Thickness;
+                    }
+                }
+            }
         }
     }
 }

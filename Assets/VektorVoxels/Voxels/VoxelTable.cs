@@ -73,7 +73,14 @@ namespace VektorVoxels.Voxels {
                 VoxelFlags.None, 
                 FacingDirection.North,
                 Color16.Clear(), 
-                new Vector2(0, 0)
+                new [] {
+                    new Vector2(1, 0),
+                    new Vector2(1, 0),
+                    new Vector2(1, 0),
+                    new Vector2(1, 0),
+                    new Vector2(0, 0),
+                    new Vector2(2, 0)
+                }
             ),
             new VoxelDefinition(
                 "dirt", "Dirt", 
