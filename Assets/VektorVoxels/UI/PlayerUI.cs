@@ -9,6 +9,7 @@ namespace VektorVoxels.UI {
     public class PlayerUI : MonoBehaviour {
         [Header("UI Objects")]
         [SerializeField] private Image _compass;
+        [SerializeField] private Text _selectedName;
         [SerializeField] private BlockImage[] _blockImages = new BlockImage[7];
         
         private int _selectionOffset;
@@ -40,10 +41,11 @@ namespace VektorVoxels.UI {
                 var voxelId = WrapIndex(_selectionOffset + i, 0, VoxelTable.VoxelCount);
                 try {
                     _blockImages[i].SetVoxelDefinition(VoxelTable.Voxels[voxelId]);
-                    _blockImages[i].SetLabelState(i == 3);
 
                     if (i == 3) {
-                        _player.SetHandVoxel(VoxelTable.Voxels[voxelId]);
+                        var selected = VoxelTable.Voxels[voxelId];
+                        _selectedName.text = selected.FriendlyName;
+                        _player.SetHandVoxel(selected);
                     }
                 }
                 catch (Exception e) {

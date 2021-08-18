@@ -845,6 +845,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 7992831999626789074, guid: a78eb23bcf8ba2743aa3dda4e26ffb9c, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.75
+      objectReference: {fileID: 0}
     - target: {fileID: 7992832001240577696, guid: a78eb23bcf8ba2743aa3dda4e26ffb9c, type: 3}
       propertyPath: _selector
       value: 
@@ -884,6 +888,14 @@ PrefabInstance:
     - target: {fileID: 7992832001240577696, guid: a78eb23bcf8ba2743aa3dda4e26ffb9c, type: 3}
       propertyPath: _voxels.Array.data[5]
       value: lightstone
+      objectReference: {fileID: 0}
+    - target: {fileID: 7992832001240577697, guid: a78eb23bcf8ba2743aa3dda4e26ffb9c, type: 3}
+      propertyPath: m_Height
+      value: 1.75
+      objectReference: {fileID: 0}
+    - target: {fileID: 7992832001240577697, guid: a78eb23bcf8ba2743aa3dda4e26ffb9c, type: 3}
+      propertyPath: m_Radius
+      value: 0.33
       objectReference: {fileID: 0}
     - target: {fileID: 7992832001240577698, guid: a78eb23bcf8ba2743aa3dda4e26ffb9c, type: 3}
       propertyPath: m_Name

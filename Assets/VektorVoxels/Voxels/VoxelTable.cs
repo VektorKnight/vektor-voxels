@@ -118,6 +118,13 @@ namespace VektorVoxels.Voxels {
                 new Vector2(6, 0)
             ),
             new VoxelDefinition(
+                "cobblestone", "Cobblestone", 
+                VoxelFlags.None, 
+                FacingDirection.North,
+                Color16.Clear(), 
+                new Vector2(0, 1)
+            ),
+            new VoxelDefinition(
                 "glass", "Glass", 
                 VoxelFlags.AlphaRender, 
                 FacingDirection.North,
@@ -156,36 +163,36 @@ namespace VektorVoxels.Voxels {
                 "lightstone_red", "Red Lightstone", 
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(15, 3, 3, 0), 
-                new Vector2(0, 7)
+                new Color16(15, 0, 0, 0), 
+                new Vector2(1, 7)
             ),
             new VoxelDefinition(
                 "lightstone_green", "Green Lightstone", 
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(3, 15, 3, 0), 
-                new Vector2(0, 7)
+                new Color16(0, 15, 0, 0), 
+                new Vector2(2, 7)
             ),
             new VoxelDefinition(
                 "lightstone_blue", "Blue Lightstone", 
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(3, 3, 15, 0), 
-                new Vector2(0, 7)
+                new Color16(0, 0, 15, 0), 
+                new Vector2(3, 7)
             ),
             new VoxelDefinition(
                 "lightstone_yellow", "Yellow Lightstone", 
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(15, 15, 3, 0), 
-                new Vector2(0, 7)
+                new Color16(15, 12, 0, 0), 
+                new Vector2(4, 7)
             ),
             new VoxelDefinition(
                 "lightstone_purple", "Purple Lightstone", 
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(15, 3, 15, 0), 
-                new Vector2(0, 7)
+                new Color16(7, 0, 15, 0), 
+                new Vector2(5, 7)
             ),
         };
 }
