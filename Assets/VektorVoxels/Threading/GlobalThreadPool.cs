@@ -37,13 +37,14 @@ namespace VektorVoxels.Threading {
         /// <summary>
         /// Immediately queues the provided job for execution on the pool.
         /// </summary>
-        /// <param name="item"></param>
-        /// <returns></returns>
         public static PoolJob DispatchJob(PoolJob item) {
             Instance._threadPool.EnqueueWorkItem(item);
             return item;
         }
-
+        
+        /// <summary>
+        /// Queues a given action to be executed on the main thread.
+        /// </summary>
         public static void QueueOnMain(Action a) {
             Instance._mainQueue.Enqueue(a);
         }

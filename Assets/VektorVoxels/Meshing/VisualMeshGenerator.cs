@@ -288,11 +288,6 @@ namespace VektorVoxels.Meshing {
                             if (voxel.Id == neighbor.Id) {
                                 continue;
                             }
-                            
-                            // Generate UV coordinates from voxel table.
-                            //var origin = i == 4 || i == 5
-                                //? VoxelTable.GetVoxelDefinition(voxel.Id).AtlasA * TEX_UV_WIDTH
-                                //: VoxelTable.GetVoxelDefinition(voxel.Id).AtlasB * TEX_UV_WIDTH;
 
                             var rect = voxelDef.TextureRects[i];
 

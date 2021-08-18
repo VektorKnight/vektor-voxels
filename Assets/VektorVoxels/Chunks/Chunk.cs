@@ -78,6 +78,12 @@ namespace VektorVoxels.Chunks {
         
         // Useful accessors.
         public Vector2Int ChunkId => _chunkId;
+
+        public Vector2Int ChunkPos {
+            get => _chunkPos;
+            set => _chunkPos = value;
+        }
+
         public VoxelData[] VoxelData => _voxelData;
         public HeightData[] HeightMap => _heightMap;
         public Color16[] BlockLight => _blockLight;
@@ -156,6 +162,14 @@ namespace VektorVoxels.Chunks {
                 Mathf.FloorToInt(world.x - transform.position.x),
                 Mathf.FloorToInt(world.y),
                 Mathf.FloorToInt(world.z - transform.position.z)
+            );
+        }
+
+        public Vector3 LocalToWorld(Vector3Int local) {
+            return new Vector3(
+                local.x + transform.position.x,
+                local.y,
+                local.z + transform.position.z
             );
         }
 

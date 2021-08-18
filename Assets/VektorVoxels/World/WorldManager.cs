@@ -115,7 +115,7 @@ namespace VektorVoxels.World {
             // Limit max framerate to 360 cause coil whine is annoying.
             Application.targetFrameRate = 360;
 
-            _generator = FlatGenerator.Default();
+            _generator = PerlinGenerator.Default();
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
             _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);
         }
