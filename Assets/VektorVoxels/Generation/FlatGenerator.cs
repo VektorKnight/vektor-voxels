@@ -44,7 +44,7 @@ namespace VektorVoxels.Generation {
 
         public void ProcessChunk(in Chunk chunk) {
             Debug.Assert(chunk != null, "Received a null chunk reference!");
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             var layerY = 0;
             foreach (var layer in _layers) {
                 // Get the voxel data instance for the current layer.

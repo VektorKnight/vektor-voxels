@@ -1,4 +1,4 @@
-﻿namespace VektorVoxels.Threading {
+﻿namespace VektorVoxels.Threading.Jobs {
     public enum JobCompletionState {
         None,
         Completed,

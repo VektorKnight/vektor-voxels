@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Generation;
+using VektorVoxels.Lighting;
+using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
 using Random = UnityEngine.Random;
 
@@ -20,8 +22,14 @@ namespace VektorVoxels.World {
     /// </summary>
     public class WorldManager : MonoBehaviour {
         public static WorldManager Instance { get; private set; }
+        
+        /// <summary>
+        /// Width and height of chunks.
+        /// Messing with this value may require additional code updates.
+        /// </summary>
+        public static readonly Vector2Int CHUNK_SIZE = new Vector2Int(16, 256);
 
-        [Header("Chunk Config")] [SerializeField] private Vector2Int _chunkSize = new Vector2Int(16, 256);
+        [Header("Chunk Config")] 
         [SerializeField] private Vector2Int _maxChunks = new Vector2Int(64, 64);
         [SerializeField] private bool _useSmoothLighting = true;
         [SerializeField] private Chunk _chunkPrefab;
@@ -32,24 +40,32 @@ namespace VektorVoxels.World {
         [SerializeField] [Range(1, 32)] private int _viewDistance = 10;
         [SerializeField] private Transform _loadTransform;
 
+        [Header("Performance")] 
+        [SerializeField] private int _chunksPerTick = 4;
+
         private ITerrainGenerator _generator;
         private Chunk[,] _chunks;
         private LoadRect _loadRect;
-        
+        private List<Chunk> _loadedChunks;
+        private List<Chunk> _chunksToLoad;
+        private Queue<Chunk> _loadQueue;
+
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
         public static event WorldEventHandler OnWorldEvent;
         
-        public Vector2Int ChunkSize => _chunkSize;
         public Vector2Int MaxChunks => _maxChunks;
         public bool UseSmoothLighting => _useSmoothLighting;
         public WorldType WorldType => _worldType;
         public int SeaLevel => _seaLevel;
+        public int ViewDistance => _viewDistance;
 
         public ITerrainGenerator Generator => _generator;
         public Chunk[,] Chunks => _chunks;
         public LoadRect LoadRect => _loadRect;
-        
+
+        public int ChunksPerTick => _chunksPerTick;
+
         /// <summary>
         /// Checks if a chunk ID is within the bounds of the world.
         /// </summary>
@@ -64,7 +80,8 @@ namespace VektorVoxels.World {
         /// <param name="id"></param>
         /// <returns></returns>
         public bool IsChunkLoaded(Vector2Int id) {
-            return _chunks[id.x, id.y] != null;
+            var chunk = _chunks[id.x, id.y];
+            return chunk != null;
         }
         
         /// <summary>
@@ -91,8 +108,8 @@ namespace VektorVoxels.World {
         
         public Vector2Int WorldToChunkPos(in Vector3 pos) {
             return new Vector2Int(
-                Mathf.FloorToInt(pos.x / _chunkSize.x),
-                Mathf.FloorToInt(pos.z / _chunkSize.x)
+                Mathf.FloorToInt(pos.x / CHUNK_SIZE.x),
+                Mathf.FloorToInt(pos.z / CHUNK_SIZE.x)
             );
         }
 
@@ -118,49 +135,122 @@ namespace VektorVoxels.World {
             _generator = PerlinGenerator.Default();
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
             _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);
+            _loadedChunks = new List<Chunk>();
+            _chunksToLoad = new List<Chunk>();
+            _loadQueue = new Queue<Chunk>();
+            
+            // Configure thread pool throttled queue.
+            GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
+        }
+        
+        /// <summary>
+        /// Used for sorting chunks.
+        /// Might be called extremely often so component-wise math was used.
+        /// Comparison is done on the Square Magnitude of the vectors since we don't need actual distance.
+        /// Just a number to compare with.
+        /// </summary>
+        private int CompareChunks(Chunk a, Chunk b) {
+            var origin = _loadRect.Position;
+            var wA = a.WorldPosition;
+            var wB = b.WorldPosition;
+
+            var aX = origin.x - wA.x;
+            var aZ = origin.y - wA.y;
+            
+            var bX = origin.x - wB.x;
+            var bZ = origin.y - wB.y;
+
+            var dA = aX * aX + aZ * aZ;
+            var dB = bX * bX + bZ * bZ;
+
+            if (dA > dB) {
+                return 1;
+            }
+
+            if (dA == dB) {
+                return 0;
+            }
+
+            return -1;
         }
 
-        private void Update() {
+        private void FixedUpdate() {
             if (_loadTransform == null) {
                 return;
             }
-
+            
+            // Update load rect origin.
             var loadPosition = _loadTransform.position;
             var loadOrigin = new Vector2Int(
-                Mathf.RoundToInt(loadPosition.x / _chunkSize.x),
-                Mathf.RoundToInt(loadPosition.z / _chunkSize.x)
+                Mathf.RoundToInt(loadPosition.x / CHUNK_SIZE.x),
+                Mathf.RoundToInt(loadPosition.z / CHUNK_SIZE.x)
             );
-
+            
+            // Figure out if the rect has moved.
+            // If so, invoke the world event.
             var loadPrev = _loadRect;
             _loadRect = new LoadRect(loadOrigin, _viewDistance);
-
             if (!_loadRect.Equals(loadPrev)) {
                 OnWorldEvent?.Invoke(WorldEvent.LoadRegionChanged);
             }
-
-            // TODO: Loads chunks nearest the player first.
+            
+            // Load any new chunks.
+            _chunksToLoad.Clear();
             for (var z = loadOrigin.y - _viewDistance; z < loadOrigin.y + _viewDistance; z++) {
                 for (var x = loadOrigin.x - _viewDistance; x < loadOrigin.x + _viewDistance; x++) {
                     var chunkId = ChunkIdFromPos(new Vector2Int(x, z));
-                    var chunkPos = ChunkPosFromId(chunkId) * _chunkSize.x;
+                    var chunkPos = ChunkPosFromId(chunkId) * CHUNK_SIZE.x;
 
                     if (!IsChunkInBounds(chunkId) || IsChunkLoaded(chunkId)) continue;
 
                     var chunk = Instantiate(_chunkPrefab, new Vector3(chunkPos.x, 0, chunkPos.y), Quaternion.identity);
                     chunk.transform.SetParent(transform);
-                    chunk.Initialize(chunkId, ChunkPosFromId(chunkId));
-                    //chunk.name = $"Chunk[{chunkId.x},{chunkId.y}]";
+                    chunk.name = $"Chunk[{chunkId.x},{chunkId.y}]";
+                    chunk.SetIdAndPosition(chunkId, ChunkPosFromId(chunkId));
+                    
+                    // Set global table reference.
                     _chunks[chunkId.x, chunkId.y] = chunk;
+                    
+                    // Add the chunk to the load list.
+                    _chunksToLoad.Add(chunk);
                 }
+            }
+            
+            // Sort the list of chunks waiting to be loaded.
+            _chunksToLoad.Sort(CompareChunks);
+            foreach (var chunk in _chunksToLoad) {
+                if (_loadQueue.Contains(chunk)) continue;
+                _loadQueue.Enqueue(chunk);
+            }
+            
+            // Initialize chunks waiting to be loaded.
+            var count = _chunksPerTick;
+            while (_loadQueue.Count > 0) {
+                if (count <= 0) {
+                    break;
+                }
+                
+                var chunk = _loadQueue.Dequeue();
+                chunk.Initialize();
+                _loadedChunks.Add(chunk);
+                count--;
+            }
+        }
+
+        private void Update() {
+            // Sort the loaded chunks then tick them in order.
+            _loadedChunks.Sort(CompareChunks);
+            foreach (var chunk in _loadedChunks) {
+                chunk.OnTick();
             }
         }
 
         private void OnDrawGizmos() {
             Gizmos.color = Color.green;
-            Gizmos.DrawWireCube(new Vector3(_loadRect.Position.x, 0, _loadRect.Position.y) * _chunkSize.x, new Vector3(_viewDistance * 2, 1, _viewDistance * 2) * _chunkSize.x);
+            Gizmos.DrawWireCube(new Vector3(_loadRect.Position.x, 0, _loadRect.Position.y) * CHUNK_SIZE.x, new Vector3(_viewDistance * 2, 1, _viewDistance * 2) * CHUNK_SIZE.x);
             
             Gizmos.color = Color.red;
-            Gizmos.DrawWireCube(Vector3.zero, new Vector3(_maxChunks.x, 16, _maxChunks.y) * _chunkSize.x);
+            Gizmos.DrawWireCube(Vector3.zero, new Vector3(_maxChunks.x, 16, _maxChunks.y) * CHUNK_SIZE.x);
         }
     }
 }

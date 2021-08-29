@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Meshing;
@@ -10,6 +11,10 @@ namespace VektorVoxels.Lighting {
     /// Performs lightmapping on chunks.
     /// </summary>
     public sealed class LightMapper {
+        // Static thread-local instance for the job system.
+        private static readonly ThreadLocal<LightMapper> _threadLocal = new ThreadLocal<LightMapper>(() => new LightMapper());
+        public static LightMapper LocalThreadInstance => _threadLocal.Value;
+
         private static readonly Vector3Int[] _sunNeighbors = {
             Vector3Int.forward, 
             Vector3Int.right, 
@@ -144,7 +149,7 @@ namespace VektorVoxels.Lighting {
             while (stack.Count > 0) {
                 // Grab node and sample lightmap at the node position.
                 var node = stack.Pop();
-                var cpi = VoxelUtility.VoxelIndex(in node.Position, d);
+                var cpi = VoxelUtility.VoxelIndex(node.Position, d);
                 var current = lightMap[cpi];
 
                 // Write max of the current light and node values.
@@ -164,7 +169,7 @@ namespace VektorVoxels.Lighting {
                     // Grab neighbor voxel and light depending on locality.
                     // Voxels outside the current grid will be skipped.
                     var np = MeshTables.VoxelNeighbors[i] + node.Position;
-                    var npi = VoxelUtility.VoxelIndex(in np, d);
+                    var npi = VoxelUtility.VoxelIndex(np, d);
                     
                     if (!VoxelUtility.InLocalGrid(np, d)) {
                         continue;
@@ -223,7 +228,8 @@ namespace VektorVoxels.Lighting {
             var voxelData = chunk.VoxelData;
             var heightMap = chunk.HeightMap;
             var sunLight = chunk.SunLight;
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
+            
             _sunNodes.Clear();
             var vp = Vector3Int.zero;
             for (var z = 0; z < d.x; z++) {
@@ -231,34 +237,35 @@ namespace VektorVoxels.Lighting {
                     // Grab current height data.
                     ref var heightData = ref heightMap[VoxelUtility.HeightIndex(x, z, d.x)];
 
-                    // Skip clean height values.
-                    if (!heightData.Dirty) {
-                        continue;
-                    }
-                    
                     // Iterate the entire column.
                     for (var y = d.y - 1; y >= 0; y--) {
                         // Grab current voxel.
                         vp.x = x; vp.y = y; vp.z = z;
                         var vpi = VoxelUtility.VoxelIndex(x, y, z, d);
 
-                        // Clear dirty flag.
-                        heightData.Dirty = false;
-                        
-                        // Set any values below the heightmap to zero and continue.
-                        if (y < heightData.Value) {
-                            sunLight[vpi] = Color16.Clear();
-                            continue;
-                        }
-                        
                         // Set all values above the heightmap to full white.
                         sunLight[vpi] = new Color16(15, 15, 15, 0);
                         
+                        // Set any values at or below the heightmap to zero and continue.
+                        if (y <= heightData.Value) {
+                            sunLight[vpi] = Color16.Clear();
+                            heightData.Dirty = false;
+                            continue;
+                        }
+                        
+                        // Skip clean height values.
+                        if (!heightData.Dirty) {
+                            continue;
+                        }
+                        
+                        // Clear dirty flag.
+                        heightData.Dirty = false;
+
                         // Check neighbors for null/non-opaque blocks below the heightmap.
                         // Propagation nodes will be queued for these locations.
                         for (var i = 0; i < 4; i++) {
                             var np = _sunNeighbors[i] + vp;
-                            var npi = VoxelUtility.VoxelIndex(in np, d);
+                            var npi = VoxelUtility.VoxelIndex(np, d);
                             
                             // Skip out of bounds positions.
                             if (!VoxelUtility.InLocalGrid(np, d)) {
@@ -292,7 +299,7 @@ namespace VektorVoxels.Lighting {
             
             _sunNodes.Clear();
             _blockNodes.Clear();
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             
             // process columns along each neighbor boundary.
             for (var i = 0; i < d.x; i++) {
@@ -329,7 +336,7 @@ namespace VektorVoxels.Lighting {
         /// </summary>
         public void InitializeBlockLightFirstPass(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             _blockNodes.Clear();
             for (var y = 0; y < d.y; y++) {
                 for (var z = 0; z < d.x; z++) {
@@ -350,7 +357,7 @@ namespace VektorVoxels.Lighting {
         public void PropagateSunLight(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
             var sunLight = chunk.SunLight;
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             PropagateLightNodes(voxelData, sunLight, d, true);
         }
         
@@ -360,7 +367,7 @@ namespace VektorVoxels.Lighting {
         public void PropagateBlockLight(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
             var blockLight = chunk.BlockLight;
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             PropagateLightNodes(voxelData, blockLight, d, false);
         }
     }
