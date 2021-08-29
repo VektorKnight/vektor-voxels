@@ -5,19 +5,21 @@ using System.Threading.Tasks;
 using Unity.Jobs;
 using UnityEngine;
 using VektorVoxels.Chunks;
+using VektorVoxels.Config;
 using VektorVoxels.Threading;
+using VektorVoxels.Threading.Jobs;
 
 namespace VektorVoxels.Meshing {
     public class MeshJob : PoolJob {
         private readonly Chunk _chunk;
         private readonly NeighborSet _neighbors;
-        private readonly VisualMeshGenerator _mesher;
+        private Mesh.MeshDataArray _meshData;
         private readonly Action _callBack;
 
-        public MeshJob(long id, Chunk chunk, NeighborSet neighbors, VisualMeshGenerator mesher, Action callBack) : base(id) {
+        public MeshJob(long id, Chunk chunk, NeighborSet neighbors, Mesh.MeshDataArray meshData, Action callBack) : base(id) {
             _chunk = chunk;
             _neighbors = neighbors;
-            _mesher = mesher;
+            _meshData = meshData;
             _callBack = callBack;
             CompletionState = JobCompletionState.None;
         }
@@ -31,16 +33,36 @@ namespace VektorVoxels.Meshing {
             }
             
             // Acquire a read lock on the chunk and generate mesh data.
-            _chunk.ThreadLock.EnterReadLock();
-            _mesher.GenerateMeshData(_chunk, _neighbors);
-            _chunk.ThreadLock.ExitReadLock();
-            
-            // Signal completion.
-            SignalCompletion(JobCompletionState.Completed);
+            if (_chunk.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                var mesher = MeshGenerator.LocalThreadInstance;
+                mesher.GenerateMeshData(_chunk, _neighbors);
+                mesher.ApplyMeshData(ref _meshData);
+                _chunk.ThreadLock.ExitReadLock();
+                
+                // Signal completion.
+                SignalCompletion(JobCompletionState.Completed);
 
-            // Invoke callback on main if specified.
-            if (_callBack != null) {
-                GlobalThreadPool.QueueOnMain(_callBack);
+                // Invoke callback on main if specified.
+                if (_callBack != null) {
+                    GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Throttled);
+                }
+            }
+            else {
+                Debug.LogError("Job aborted due to read lock timeout expiration!\n" +
+                               "Something is probably imploding.");
+                
+                SignalCompletion(JobCompletionState.Aborted);
+                
+                // This honestly gets us into an invalid state that cannot be recovered from
+                // so the application will just exit by default.
+                _context.Post((state) => {
+                    if (Application.isEditor) {
+                        Debug.Break();
+                    }
+                    else {
+                        Application.Quit();
+                    }
+                }, null);
             }
         }
     }

@@ -3,24 +3,30 @@
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Runtime.Remoting.Metadata.W3cXsd2001;
+using System.Diagnostics;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VektorVoxels.Chunks;
+using VektorVoxels.Config;
 using VektorVoxels.Lighting;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
+using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Meshing {
     /// <summary>
     /// Performs Minecraft-style cubic meshing of a voxel grid.
     /// </summary>
-    public class VisualMeshGenerator {
+    public class MeshGenerator {
         public const int ATLAS_SIZE = 256;
         public const int TEXTURE_SIZE = 16;
         public const float TEX_UV_WIDTH = 1f / (ATLAS_SIZE / TEXTURE_SIZE);
         
+        // Thread-local instance.
+        private static readonly ThreadLocal<MeshGenerator> _threadLocal = new ThreadLocal<MeshGenerator>(() => new MeshGenerator());
+        public static MeshGenerator LocalThreadInstance => _threadLocal.Value;
+
         // Resulting mesh data.
         private readonly List<Vertex> _vertices;
         private readonly List<int> _trianglesA;
@@ -43,7 +49,7 @@ namespace VektorVoxels.Meshing {
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.UNorm8, 4)
         };
 
-        public VisualMeshGenerator() {
+        public MeshGenerator() {
             _vertices = new List<Vertex>();
             _trianglesA = new List<int>();
             _trianglesB = new List<int>();
@@ -82,7 +88,7 @@ namespace VektorVoxels.Meshing {
         
         /// <summary>
         /// Fetches data from a neighbor depending on position and if the neighbor was provided.
-        /// This function might give you a stroke.
+        /// WARNING: This function might give you a stroke.
         /// </summary>
         private static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, out VoxelData v, out LightData l) {
             Chunk neighbor;
@@ -163,47 +169,6 @@ namespace VektorVoxels.Meshing {
             }
         }
         
-        /// <summary>
-        /// Acquires read locks on any valid neighbors.
-        /// </summary>
-        private void AcquireNeighborLocks(in NeighborSet neighbors) {
-            if ((neighbors.Flags & NeighborFlags.North) != 0) {
-                neighbors.North.ThreadLock.EnterReadLock();
-            }
-            
-            if ((neighbors.Flags & NeighborFlags.East) != 0) {
-                neighbors.East.ThreadLock.EnterReadLock();
-            }
-            
-            if ((neighbors.Flags & NeighborFlags.South) != 0) {
-                neighbors.South.ThreadLock.EnterReadLock();
-            }
-            
-            if ((neighbors.Flags & NeighborFlags.West) != 0) {
-                neighbors.West.ThreadLock.EnterReadLock();
-            }
-        }
-        
-        /// <summary>
-        /// Releases read locks on any valid neighbors.
-        /// </summary>
-        private void ReleaseNeighborLocks(in NeighborSet neighbors) {
-            if ((neighbors.Flags & NeighborFlags.North) != 0) {
-                neighbors.North.ThreadLock.ExitReadLock();
-            }
-            
-            if ((neighbors.Flags & NeighborFlags.East) != 0) {
-                neighbors.East.ThreadLock.ExitReadLock();
-            }
-            
-            if ((neighbors.Flags & NeighborFlags.South) != 0) {
-                neighbors.South.ThreadLock.ExitReadLock();
-            }
-            
-            if ((neighbors.Flags & NeighborFlags.West) != 0) {
-                neighbors.West.ThreadLock.ExitReadLock();
-            }
-        }
 
         /// <summary>
         /// Generates mesh data for a given voxel grid.
@@ -212,12 +177,12 @@ namespace VektorVoxels.Meshing {
         /// </summary>
         public void GenerateMeshData(in Chunk chunk, NeighborSet neighbors) {
             // Acquire read lock on all provided neighbors.
-            AcquireNeighborLocks(in neighbors);
+            neighbors.AcquireReadLocks();
             
             var voxelGrid = chunk.VoxelData;
             var sunLight = chunk.SunLight;
             var blockLight = chunk.BlockLight;
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             var smoothLight = WorldManager.Instance.UseSmoothLighting;
             
             // Clear work buffers.
@@ -235,20 +200,20 @@ namespace VektorVoxels.Meshing {
                     for (var x = 0; x < d.x; x++) {
                         // Grab current voxel and light data.
                         vp.x = x; vp.y = y; vp.z = z;
-                        var voxel = voxelGrid[VoxelUtility.VoxelIndex(in vp, d)];
+                        var voxel = voxelGrid[VoxelUtility.VoxelIndex(vp, d)];
 
                         // Skip if voxel is null.
                         if (voxel.Id == 0) continue;
                         
+                        // Grab the voxel definition.
                         var voxelDef = VoxelTable.GetVoxelDefinition(voxel.Id);
                         
                         // Iterate each neighbor and determine if a face should be added.
-                        // TODO: Handle data from neighboring chunks.
                         for (var i = 0; i < 6; i++) {
                             // Grab neighbor voxel depending on locality.
                             // Voxels outside the current grid will just be null.
                             var np = MeshTables.VoxelNeighbors[i] + vp;
-                            var npi = VoxelUtility.VoxelIndex(in np, d);
+                            var npi = VoxelUtility.VoxelIndex(np, d);
                             
                             VoxelData neighbor;
                             LightData light;
@@ -265,7 +230,7 @@ namespace VektorVoxels.Meshing {
                             if (smoothLight) {
                                 for (var l = 0; l < 8; l++) {
                                     var lnp = MeshTables.LightNeighbors[i][l] + np;
-                                    var lni = VoxelUtility.VoxelIndex(in lnp, d);
+                                    var lni = VoxelUtility.VoxelIndex(lnp, d);
 
                                     LightData smoothLightData;
                                     if (VoxelUtility.InLocalGrid(lnp, d)) {
@@ -288,9 +253,9 @@ namespace VektorVoxels.Meshing {
                             if (voxel.Id == neighbor.Id) {
                                 continue;
                             }
-
+                            
+                            // Grab the texture rect corresponding to the current face and populate the UV buffer.
                             var rect = voxelDef.TextureRects[i];
-
                             _uvWorkBuffer[0] = new Vector2(rect.position.x, rect.yMax);
                             _uvWorkBuffer[1] = rect.position;
                             _uvWorkBuffer[2] = new Vector2(rect.xMax, rect.position.y);
@@ -372,13 +337,43 @@ namespace VektorVoxels.Meshing {
             }
             
             // Release neighbor locks.
-            ReleaseNeighborLocks(in neighbors);
+            neighbors.ReleaseReadLocks();
+        }
+        
+        /// <summary>
+        /// Applies the recently generated mesh data to a provided mesh data array.
+        /// </summary>
+        public void ApplyMeshData(ref Mesh.MeshDataArray meshData) {
+            var data = meshData[0];
+            
+            data.SetVertexBufferParams(_vertices.Count, _vertexBufferParams);
+            data.SetIndexBufferParams(_trianglesA.Count + _trianglesB.Count, IndexFormat.UInt32);
+            
+            // Write in the vertex buffer data.
+            var vertexBuffer = data.GetVertexData<Vertex>();
+            for (var i = 0; i < _vertices.Count; i++) {
+                vertexBuffer[i] = _vertices[i];
+            }
+            
+            // Configure sub-meshes and write index buffer data.
+            // Sub-mesh index data is packed linearly.
+            var indexBuffer = data.GetIndexData<uint>();
+            for (var i = 0; i < _trianglesA.Count; i++) {
+                indexBuffer[i] = (uint)_trianglesA[i];
+            }
+            for (var i = 0; i < _trianglesB.Count; i++) {
+                indexBuffer[i + _trianglesA.Count] = (uint)_trianglesB[i];
+            }
+            
+            data.subMeshCount = 2;
+            data.SetSubMesh(0, new SubMeshDescriptor(0, _trianglesA.Count, MeshTopology.Triangles));
+            data.SetSubMesh(1, new SubMeshDescriptor(_trianglesA.Count, _trianglesB.Count, MeshTopology.Triangles));
         }
         
         /// <summary>
         /// Sets generated mesh data to a given mesh.
         /// </summary>
-        public void SetMeshData(ref Mesh mesh) {
+        /*public void SetMeshData(ref Mesh mesh) {
             if (mesh == null) {
                 mesh = new Mesh() {
                     indexFormat = IndexFormat.UInt32
@@ -391,6 +386,6 @@ namespace VektorVoxels.Meshing {
             mesh.subMeshCount = 2;
             mesh.SetTriangles(_trianglesA, 0, false);
             mesh.SetTriangles(_trianglesB, 1);
-        }
+        }*/
     }
 }

@@ -53,7 +53,7 @@ namespace VektorVoxels.Voxels {
             _nameIdMap = new Dictionary<string, uint>(UserVoxels.Length);
             
             // User IDs start at 1 as 0 us reserved for air/null.
-            uint id = 1;
+            ushort id = 1;
             foreach (var userVoxel in UserVoxels) {
                 _runtimeVoxels[id - 1] = new VoxelDefinition(id, userVoxel);
                 _nameIdMap.Add(userVoxel.InternalName, id);

@@ -96,7 +96,7 @@ namespace VektorVoxels.Interaction {
             if (Physics.Raycast(selectionRay, out RaycastHit hit, 10f, _selectionMask)) {
                 Debug.DrawLine(selectionRay.origin, hit.point, Color.cyan);
                 
-                if (WorldManager.Instance.TryGetChunk(hit.point, out var chunk)) {
+                if (WorldManager.Instance.TryGetChunk(hit.point - (hit.normal * 0.1f), out var chunk)) {
                     var selected = chunk.WorldToLocal(hit.point - (hit.normal * 0.1f));
                     var placement = chunk.WorldToLocal(hit.point + (hit.normal * 0.1f));
                     _selector.transform.position = chunk.LocalToWorld(selected) + new Vector3(0.5f, 0.5f, 0.5f);

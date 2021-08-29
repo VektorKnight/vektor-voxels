@@ -28,15 +28,16 @@ namespace VektorVoxels.Chunks {
         private MeshCollider _meshCollider;
         
         // Lightmapper and mesher instances.
-        private LightMapper _lightMapper;
-        private VisualMeshGenerator _mesher;
         private Mesh _mesh;
+        private Mesh.MeshDataArray _latestMesh;
+        private bool _latestMeshUsed = true;
         private Chunk[] _neighborBuffer;
         private NeighborFlags _neighborFlags;
         
         // World data.
         private Vector2Int _chunkId;
         private Vector2Int _chunkPos;
+        private Vector2Int _worldPos;
         private VoxelData[] _voxelData;
         private Color16[] _sunLight;
         private Color16[] _blockLight;
@@ -47,7 +48,7 @@ namespace VektorVoxels.Chunks {
         private List<VoxelUpdate> _voxelUpdates;
         
         // Mesh data.
-        private ChunkState _state;
+        private ChunkState _state = ChunkState.Uninitialized;
         private bool _waitingForJob;
         private bool _partialLoad;
         private bool _waitingForReload, _waitingForUnload;
@@ -78,12 +79,8 @@ namespace VektorVoxels.Chunks {
         
         // Useful accessors.
         public Vector2Int ChunkId => _chunkId;
-
-        public Vector2Int ChunkPos {
-            get => _chunkPos;
-            set => _chunkPos = value;
-        }
-
+        public Vector2Int ChunkPos => _chunkPos;
+        public Vector2Int WorldPosition => _worldPos;
         public VoxelData[] VoxelData => _voxelData;
         public HeightData[] HeightMap => _heightMap;
         public Color16[] BlockLight => _blockLight;
@@ -95,15 +92,27 @@ namespace VektorVoxels.Chunks {
         public ReaderWriterLockSlim ThreadLock => _threadLock;
         public long JobCounter => Interlocked.Read(ref _jobSetCounter);
 
+        public void SetIdAndPosition(Vector2Int id, Vector2Int pos) {
+            if (_state != ChunkState.Uninitialized) {
+                Debug.LogError("Cannot set chunk ID after initialization.");
+                return;
+            }
+            
+            _chunkId = id;
+            _chunkPos = pos;
+            _worldPos = pos * WorldManager.CHUNK_SIZE.x;
+        }
+
         /// <summary>
         /// Initializes this chunk and gets it ready for use.
         /// Should only be called by the WorldManager instance.
         /// </summary>
-        /// <param name="id"></param>
-        public void Initialize(Vector2Int id, Vector2Int pos) {
-            _chunkId = id;
-            _chunkPos = pos;
-            
+        public void Initialize() {
+            if (_state != ChunkState.Uninitialized) {
+                Debug.LogError("Chunk initializer called on an already initialized chunk.");
+                return;
+            }
+
             // Reference required components.
             _meshFilter = GetComponent<MeshFilter>();
             _meshRenderer = GetComponent<MeshRenderer>();
@@ -114,12 +123,9 @@ namespace VektorVoxels.Chunks {
                 _alphaMaterial
             };
             
-            _meshRenderer.enabled = false;
+            _meshRenderer.forceRenderingOff = true;
             _meshCollider.convex = false;
-
-            // Mesher and lightmapper.
-            _mesher = new VisualMeshGenerator();
-            _lightMapper = new LightMapper();
+            
             _mesh = new Mesh() {
                 name = $"ChunkMesh-{GetInstanceID()}",
                 indexFormat = IndexFormat.UInt32
@@ -130,7 +136,7 @@ namespace VektorVoxels.Chunks {
             _meshCollider.sharedMesh = _mesh;
             
             // World data.
-            var dimensions = WorldManager.Instance.ChunkSize;
+            var dimensions = WorldManager.CHUNK_SIZE;
             var dataSize = dimensions.x * dimensions.y * dimensions.x;
             _voxelData = new VoxelData[dataSize];
             _sunLight = new Color16[dataSize];
@@ -157,19 +163,19 @@ namespace VektorVoxels.Chunks {
         }
 
         public Vector3Int WorldToLocal(Vector3 world) {
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             return new Vector3Int(
-                Mathf.FloorToInt(world.x - transform.position.x),
+                Mathf.FloorToInt(world.x - _worldPos.x),
                 Mathf.FloorToInt(world.y),
-                Mathf.FloorToInt(world.z - transform.position.z)
+                Mathf.FloorToInt(world.z - _worldPos.y)
             );
         }
 
         public Vector3 LocalToWorld(Vector3Int local) {
             return new Vector3(
-                local.x + transform.position.x,
+                local.x + _worldPos.x,
                 local.y,
-                local.z + transform.position.z
+                local.z + _worldPos.y
             );
         }
 
@@ -249,7 +255,7 @@ namespace VektorVoxels.Chunks {
                 QueueLightPass(LightPass.First);
             }
             else {
-                _meshRenderer.enabled = true;
+                _meshRenderer.forceRenderingOff = false;
                 _state = ChunkState.Ready;
             }
         }
@@ -260,7 +266,8 @@ namespace VektorVoxels.Chunks {
         private void Unload() {
             _waitingForUnload = false;
             _state = ChunkState.Inactive;
-            _meshRenderer.enabled = false;
+            //_meshRenderer.enabled = false;
+            _meshRenderer.forceRenderingOff = true;
         }
         
         /// <summary>
@@ -274,7 +281,6 @@ namespace VektorVoxels.Chunks {
                             _jobSetCounter, 
                             this, 
                             new NeighborSet(_neighborBuffer, _neighborFlags),
-                            _lightMapper,
                             LightPass.First, _lightCallback1
                         )
                     );
@@ -286,7 +292,6 @@ namespace VektorVoxels.Chunks {
                             _jobSetCounter, 
                             this, 
                             new NeighborSet(_neighborBuffer, _neighborFlags),
-                            _lightMapper,
                             LightPass.Second, _lightCallback2
                         )
                     );
@@ -298,7 +303,6 @@ namespace VektorVoxels.Chunks {
                             _jobSetCounter, 
                             this, 
                             new NeighborSet(_neighborBuffer, _neighborFlags),
-                            _lightMapper,
                             LightPass.Third, _lightCallback3
                         )
                     );
@@ -313,12 +317,20 @@ namespace VektorVoxels.Chunks {
         }
         
         private void QueueMeshPass() {
+            //_latestMesh.Dispose();
+            if (!_latestMeshUsed) {
+                Debug.LogError("Overlapping jobs!");
+                _latestMesh.Dispose();
+                Debug.Break();
+            }
+            _latestMesh = Mesh.AllocateWritableMeshData(1);
+            _latestMeshUsed = false;
             GlobalThreadPool.DispatchJob(
                 new MeshJob(
                     _jobSetCounter, 
                     this, 
-                    new NeighborSet(_neighborBuffer, _neighborFlags), 
-                    _mesher, 
+                    new NeighborSet(_neighborBuffer, _neighborFlags),
+                    _latestMesh,
                     _meshCallback
                 )
             );
@@ -342,14 +354,21 @@ namespace VektorVoxels.Chunks {
             _lightPass = pass;
             _state = ChunkState.WaitingForNeighbors;
         }
+
+        public void SetLatestMeshData(Mesh.MeshDataArray data) {
+            //_latestMesh.Dispose();
+            _latestMesh = data;
+        }
         
         /// <summary>
         /// Called when a mesh pass has completed.
         /// </summary>
         private void OnMeshPassComplete() {
             _waitingForJob = false;
-            _mesher.SetMeshData(ref _mesh);
-            _meshRenderer.enabled = true;
+            Mesh.ApplyAndDisposeWritableMeshData(_latestMesh, _mesh);
+            _latestMeshUsed = true;
+            _mesh.RecalculateBounds();
+            _meshRenderer.forceRenderingOff = false;
 
             if (_isDirty) {
                 _meshCollider.sharedMesh = _mesh;
@@ -409,7 +428,54 @@ namespace VektorVoxels.Chunks {
             }
         }
 
-        private void Update() {
+        private void UpdateAvailableNeighbors() {
+            _neighborFlags = NeighborFlags.None;
+            for (var i = 0; i < 8; i++) {
+                _neighborBuffer[i] = null;
+                var neighborId = _chunkId + _chunkNeighbors[i];
+
+                if (!WorldManager.Instance.IsChunkInView(neighborId)) {
+                    continue;
+                }
+
+                if (!WorldManager.Instance.IsChunkInBounds(neighborId)) {
+                    continue;
+                }
+
+                if (!WorldManager.Instance.IsChunkLoaded(neighborId)) {
+                    return;
+                }
+
+                var neighbor = WorldManager.Instance.Chunks[neighborId.x, neighborId.y];
+                neighbor._waitingForReload = true;
+                neighbor._isDirty = true;
+            }
+        }
+
+        private void UpdateHeightMapColumn(Vector2Int pos) {
+            var d = WorldManager.CHUNK_SIZE;
+            for (var y = d.y - 1; y >= 0; y--) {
+                var vi = VoxelUtility.VoxelIndex(pos.x, y, pos.y, d);
+                var voxel = _voxelData[vi];
+
+                if (voxel.IsNull) continue;
+                
+                var hi = VoxelUtility.HeightIndex(pos, d.x);
+                if (y == 0) {
+                    _heightMap[hi] = new HeightData(0, true);
+                }
+                else {
+                    _heightMap[hi] = new HeightData((byte)y, true);
+                    return;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Designed to be called from the World Manager.
+        /// Same purpose as Unity Update() but with finer control over timing.
+        /// </summary>
+        public void OnTick() {
             if (_state == ChunkState.WaitingForNeighbors) {
                 CheckForNeighborState();
                 return;
@@ -427,17 +493,20 @@ namespace VektorVoxels.Chunks {
                 
                 // Process voxel updates.
                 if (_voxelUpdates.Count > 0) {
+                    var d = WorldManager.CHUNK_SIZE;
                     foreach (var update in _voxelUpdates) {
-                        if (!VoxelUtility.InLocalGrid(update.Position, WorldManager.Instance.ChunkSize)) {
+                        if (!VoxelUtility.InLocalGrid(update.Position, WorldManager.CHUNK_SIZE)) {
                             Debug.Log(update.Position);
                             Debug.Log(_chunkPos);
                             continue;
                         }
 
-                        _voxelData[VoxelUtility.VoxelIndex(update.Position, WorldManager.Instance.ChunkSize)] = update.Data;
+                        _voxelData[VoxelUtility.VoxelIndex(update.Position, d)] = update.Data;
+                        UpdateHeightMapColumn(new Vector2Int(update.Position.x, update.Position.z));
                     }
                     _voxelUpdates.Clear();
                     _isDirty = true;
+                    UpdateAvailableNeighbors();
                 }
 
                 if (Input.GetKeyDown(KeyCode.F5)) {

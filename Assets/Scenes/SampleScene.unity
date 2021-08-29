@@ -151,8 +151,8 @@ Light:
   serializedVersion: 10
   m_Type: 1
   m_Shape: 0
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 1.5
+  m_Color: {r: 1, g: 0.97677684, b: 0.8915094, a: 1}
+  m_Intensity: 1.33
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -373,7 +373,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 8, y: -4}
-  m_SizeDelta: {x: 512, y: 128}
+  m_SizeDelta: {x: 512, y: 256}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1012959392
 MonoBehaviour:
@@ -663,8 +663,9 @@ MonoBehaviour:
   _chunkPrefab: {fileID: 3355102642434385408, guid: b892d8b0ef44ad844afcb94d26bfc045, type: 3}
   _worldType: 0
   _seaLevel: 32
-  _viewDistance: 10
+  _viewDistance: 16
   _loadTransform: {fileID: 1494866693}
+  _chunksPerTick: 8
 --- !u!4 &1141006912
 Transform:
   m_ObjectHideFlags: 0

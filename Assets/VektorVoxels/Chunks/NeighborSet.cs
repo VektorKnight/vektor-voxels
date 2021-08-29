@@ -1,4 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
+using UnityEngine;
+using VektorVoxels.Config;
+using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Chunks {
     public readonly struct NeighborSet {
@@ -11,7 +15,7 @@ namespace VektorVoxels.Chunks {
         public readonly Chunk SouthEast;
         public readonly Chunk SouthWest;
         public readonly Chunk NorthWest;
-        
+
         public readonly NeighborFlags Flags;
 
         public NeighborSet(in Chunk[] neighbors, NeighborFlags flags) {
@@ -30,6 +34,68 @@ namespace VektorVoxels.Chunks {
             NorthWest = neighbors[7];
             
             Flags = flags;
+        }
+        
+        /// <summary>
+        /// Acquires read locks on any valid neighbors.
+        /// </summary>
+        public void AcquireReadLocks() {
+            var success = true;
+            
+            if ((Flags & NeighborFlags.North) != 0) {
+                if (!North.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                    success = false;
+                }
+            }
+            
+            if ((Flags & NeighborFlags.East) != 0) {
+                if (!East.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                    success = false;
+                }
+            }
+            
+            if ((Flags & NeighborFlags.South) != 0) {
+                if (!South.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                    success = false;
+                }
+            }
+            
+            if ((Flags & NeighborFlags.West) != 0) {
+                if (!West.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                    success = false;
+                }
+            }
+
+            if (!success) {
+                Debug.LogError("Failed to acquire one or more neighbor locks!");
+                if (Application.isEditor) {
+                    Debug.Break();
+                }
+                else {
+                    Process.GetCurrentProcess().Kill();
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Releases read locks on any valid neighbors.
+        /// </summary>
+        public void ReleaseReadLocks() {
+            if ((Flags & NeighborFlags.North) != 0) {
+                North.ThreadLock.ExitReadLock();
+            }
+            
+            if ((Flags & NeighborFlags.East) != 0) {
+                East.ThreadLock.ExitReadLock();
+            }
+            
+            if ((Flags & NeighborFlags.South) != 0) {
+                South.ThreadLock.ExitReadLock();
+            }
+            
+            if ((Flags & NeighborFlags.West) != 0) {
+                West.ThreadLock.ExitReadLock();
+            }
         }
     }
 }

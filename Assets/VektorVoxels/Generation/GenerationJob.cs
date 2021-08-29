@@ -2,6 +2,7 @@
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Threading;
+using VektorVoxels.Threading.Jobs;
 using VektorVoxels.World;
 
 namespace VektorVoxels.Generation {
@@ -34,7 +35,7 @@ namespace VektorVoxels.Generation {
             
             // Invoke callback on main if specified.
             if (_callBack != null) {
-                GlobalThreadPool.QueueOnMain(_callBack);
+                GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Normal);
             }
         }
     }

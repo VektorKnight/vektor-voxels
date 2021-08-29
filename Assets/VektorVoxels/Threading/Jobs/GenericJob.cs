@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine;
 
-namespace VektorVoxels.Threading {
+namespace VektorVoxels.Threading.Jobs {
     /// <summary>
     /// Generic job wrapper that can execute any action.
     /// </summary>

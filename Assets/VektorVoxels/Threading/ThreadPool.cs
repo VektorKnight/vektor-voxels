@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
+using VektorVoxels.Threading.Jobs;
 
 namespace VektorVoxels.Threading {
 	 /// <summary>

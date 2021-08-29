@@ -44,7 +44,7 @@ namespace VektorVoxels.UI {
 
                     if (i == 3) {
                         var selected = VoxelTable.Voxels[voxelId];
-                        _selectedName.text = selected.FriendlyName;
+                        _selectedName.text = $"{selected.FriendlyName}";
                         _player.SetHandVoxel(selected);
                     }
                 }

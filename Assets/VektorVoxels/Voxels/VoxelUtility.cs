@@ -14,7 +14,7 @@ namespace VektorVoxels.Voxels {
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int VoxelIndex(in Vector3Int p, Vector2Int d) {
+        public static int VoxelIndex(Vector3Int p, Vector2Int d) {
             return p.x + d.x * (p.y + d.y * p.z);
         }
         
@@ -26,6 +26,11 @@ namespace VektorVoxels.Voxels {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int HeightIndex(int x, int z, int sx) {
             return x + z * sx;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int HeightIndex(Vector2Int p, int sx) {
+            return p.x + p.y * sx;
         }
     }
 }

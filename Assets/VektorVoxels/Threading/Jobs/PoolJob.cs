@@ -1,16 +1,17 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using UnityEngine;
 
-namespace VektorVoxels.Threading {
+namespace VektorVoxels.Threading.Jobs {
     /// <summary>
     /// Any job that is meant to be executed by the threadpool.
     /// Compatible with async/await.
     /// </summary>
     public abstract class PoolJob : INotifyCompletion {
-        // Context on which the job was created.
-        private readonly SynchronizationContext _context;
+        /// <summary>
+        /// Context in which the job was constructed.
+        /// </summary>
+        protected readonly SynchronizationContext _context;
         private Action _continuation;
         
         /// <summary>
@@ -50,13 +51,12 @@ namespace VektorVoxels.Threading {
             }
         }
         
-        // Custom awaiter pattern.
         public bool IsCompleted => CompletionState != JobCompletionState.None;
         
         public JobCompletionState GetResult() {
             return CompletionState;
         }
-
+        
         public void OnCompleted(Action continuation) {
             Volatile.Write(ref _continuation, continuation);
         }

@@ -4,7 +4,7 @@ using VektorVoxels.Meshing;
 
 namespace VektorVoxels.Voxels {
     public sealed class VoxelDefinition {
-        public readonly uint Id;
+        public readonly ushort Id;
         public readonly string InternalName;
         public readonly string FriendlyName;
         public readonly VoxelFlags Flags;
@@ -29,7 +29,7 @@ namespace VektorVoxels.Voxels {
             
             // Generate rects for each index.
             TextureRects = new Rect[6];
-            var uvWidth = VisualMeshGenerator.TEX_UV_WIDTH;
+            var uvWidth = MeshGenerator.TEX_UV_WIDTH;
             atlasIndex *= uvWidth;
             for (var i = 0; i < 6; i++) {
                 TextureRects[i] = new Rect(
@@ -54,7 +54,7 @@ namespace VektorVoxels.Voxels {
 
             // Generate rects for each index.
             TextureRects = new Rect[6];
-            var uvWidth = VisualMeshGenerator.TEX_UV_WIDTH;
+            var uvWidth = MeshGenerator.TEX_UV_WIDTH;
             for (var i = 0; i < 6; i++) {
                 var atlasIndex = atlasIndices[i] * uvWidth;
                 TextureRects[i] = new Rect(
@@ -68,7 +68,7 @@ namespace VektorVoxels.Voxels {
         /// Creates a runtime voxel definition from a user-defined source.
         /// This is not meant to be called by the user.
         /// </summary>
-        public VoxelDefinition(uint id, VoxelDefinition src) {
+        public VoxelDefinition(ushort id, VoxelDefinition src) {
             Id = id;
             FriendlyName = src.FriendlyName;
             Flags = src.Flags;

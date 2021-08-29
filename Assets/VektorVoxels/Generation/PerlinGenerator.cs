@@ -21,7 +21,7 @@ namespace VektorVoxels.Generation {
             foreach (var layer in layers) {
                 maxHeight += layer.Thickness;
             }
-            _maxHeight = maxHeight;
+            _maxHeight = maxHeight - 1;
             
         }
         
@@ -43,14 +43,14 @@ namespace VektorVoxels.Generation {
                 new VoxelLayer(grass.Id, 1),
                 new VoxelLayer(dirt.Id, 3),
                 new VoxelLayer(stone.Id, 27),
-                new VoxelLayer(bedrock.Id, 1),
+                new VoxelLayer(bedrock.Id, 1)
             };
 
             return new PerlinGenerator(layers, 0.02f);
         }
         
         public void ProcessChunk(in Chunk chunk) {
-            var d = WorldManager.Instance.ChunkSize;
+            var d = WorldManager.CHUNK_SIZE;
             var offset = chunk.ChunkId * d.x;
             for (var z = 0; z < d.x; z++) {
                 for (var x = 0; x < d.x; x++) {
@@ -59,9 +59,9 @@ namespace VektorVoxels.Generation {
                     var height = Mathf.RoundToInt(perlin * _maxHeight);
                     
                     // Write heightmap values.
-                    chunk.HeightMap[VoxelUtility.HeightIndex(x, z, d.x)] = new HeightData((uint)height, true);
+                    chunk.HeightMap[VoxelUtility.HeightIndex(x, z, d.x)] = new HeightData((byte)height, true);
 
-                    var layerY = height - 1;
+                    var layerY = height;
                     foreach (var layer in _layers) {
                         // Get the voxel data instance for the current layer.
                         var voxel = VoxelTable.GetVoxelDefinition(layer.VoxelId).GetDataInstance();
