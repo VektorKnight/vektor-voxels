@@ -5,7 +5,7 @@ A work-in-progress cubic voxel framework for the Unity game engine with a focus 
  - Fast and efficient cubic voxel meshing with per-side textures, orientations, and custom meshes.
  - Fast and efficient voxel lighting with full RGB support with blending and tinting through translucent materials.
  - Generic job system with a custom thread-pool supporting callbacks and C# async/await.
- - Highly-concurrent architecture to keep the main thread free of heavy work by executing meshing/lighting through on job threads.
+ - Highly-concurrent architecture to keep the main thread free of heavy work by executing meshing/lighting on job threads.
  
 ## Getting Started
  1. Clone the project to your local system.
@@ -13,4 +13,4 @@ A work-in-progress cubic voxel framework for the Unity game engine with a focus 
  3. Build some voxels with RGB lighting.
  
 ## Disclaimer
-This project is still under heavy development and some systems are far from polished. If you choose to use this code in your own project, I recommend doing so as a reference only till the first release as things are likely to change.
+This project is still under heavy development and some systems are far from polished. If you choose to use this code in your own project, I recommend doing so as a reference only till the first release as things are likely to change considerably.
