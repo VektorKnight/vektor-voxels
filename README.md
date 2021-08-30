@@ -14,3 +14,8 @@ A work-in-progress cubic voxel framework for the Unity game engine with a focus 
  
 ## Disclaimer
 This project is still under heavy development and some systems are far from polished. If you choose to use this code in your own project, I recommend doing so as a reference only till the first release as things are likely to change considerably.
+
+## Credits
+Textures used are from the Pixel Perfection texture pack by XSSheep.
+You can find the Minecraft Forum post here: 
+[Pixel Perfection](https://www.minecraftforum.net/forums/mapping-and-modding-java-edition/resource-packs/1242533-pixel-perfection-now-with-polar-bears-1-11).
