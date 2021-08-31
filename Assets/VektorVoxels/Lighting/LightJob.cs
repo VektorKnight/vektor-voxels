@@ -7,13 +7,15 @@ using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
 
 namespace VektorVoxels.Lighting {
-    public class LightJob : PoolJob {
+    public class LightJob : VektorJob {
+        private readonly long _id;
         private readonly Chunk _chunk;
         private readonly NeighborSet _neighbors;
         private readonly LightPass _pass;
         private readonly Action _callBack;
 
-        public LightJob(long id, Chunk chunk, NeighborSet neighbors, LightPass pass, Action callBack) : base(id) {
+        public LightJob(long id, Chunk chunk, NeighborSet neighbors, LightPass pass, Action callBack) {
+            _id = id;
             _chunk = chunk;
             _neighbors = neighbors;
             _pass = pass;
@@ -22,8 +24,8 @@ namespace VektorVoxels.Lighting {
 
         public override void Execute() {
             // Abort the job if the chunk's counter is != the assigned id.
-            if (_chunk.JobCounter != Id) {
-                Debug.LogWarning($"Aborting orphaned job with ID: {Id}");
+            if (_chunk.JobCounter != _id) {
+                Debug.LogWarning($"Aborting orphaned job with ID: {_id}");
                 SignalCompletion(JobCompletionState.Aborted);
                 return;
             }
@@ -60,7 +62,7 @@ namespace VektorVoxels.Lighting {
             
                 // Invoke callback on main if specified.
                 if (_callBack != null) {
-                    GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Normal);
+                    GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Default);
                 }
             }
             else {

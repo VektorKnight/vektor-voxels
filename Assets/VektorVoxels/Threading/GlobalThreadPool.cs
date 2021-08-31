@@ -57,7 +57,7 @@ namespace VektorVoxels.Threading {
         /// <summary>
         /// Immediately queues the provided job for execution on the pool.
         /// </summary>
-        public static PoolJob DispatchJob(PoolJob item) {
+        public static VektorJob<T> DispatchJob<T>(VektorJob<T> item) {
             Instance._threadPool.EnqueueWorkItem(item);
             return item;
         }
@@ -67,7 +67,7 @@ namespace VektorVoxels.Threading {
         /// </summary>
         public static void DispatchOnMain(Action a, QueueType queue) {
             switch (queue) {
-                case QueueType.Normal:
+                case QueueType.Default:
                     Instance._mainQueue.Enqueue(a);
                     break;
                 case QueueType.Throttled:

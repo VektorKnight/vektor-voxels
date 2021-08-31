@@ -7,5 +7,9 @@
             Value = value;
             Dirty = dirty;
         }
+
+        public void SetDirty() {
+            Dirty = true;
+        }
     }
 }

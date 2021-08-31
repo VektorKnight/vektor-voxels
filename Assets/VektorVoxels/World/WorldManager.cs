@@ -7,6 +7,7 @@ using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
+using VektorVoxels.Threading.Jobs;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
@@ -120,7 +121,7 @@ namespace VektorVoxels.World {
             return IsChunkLoaded(id);
         }
 
-        private void Awake() {
+        private async void Awake() {
             if (Instance != null) {
                 Debug.LogWarning("Duplicate world manager instance detected! \n" +
                                  "Please ensure only one instance is present per-scene.");
@@ -141,6 +142,10 @@ namespace VektorVoxels.World {
             
             // Configure thread pool throttled queue.
             GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
+
+            var test = new ExampleJob();
+            var result = await test.Dispatch();
+            Debug.Log(result);
         }
         
         /// <summary>
@@ -242,6 +247,12 @@ namespace VektorVoxels.World {
             _loadedChunks.Sort(CompareChunks);
             foreach (var chunk in _loadedChunks) {
                 chunk.OnTick();
+            }
+        }
+
+        private void LateUpdate() {
+            foreach (var chunk in _loadedChunks) {
+                chunk.OnLateTick();
             }
         }
 

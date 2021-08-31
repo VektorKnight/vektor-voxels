@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -18,14 +19,14 @@ namespace VektorVoxels.Meshing {
     /// <summary>
     /// Performs Minecraft-style cubic meshing of a voxel grid.
     /// </summary>
-    public class MeshGenerator {
+    public class VisualMesher {
         public const int ATLAS_SIZE = 256;
         public const int TEXTURE_SIZE = 16;
         public const float TEX_UV_WIDTH = 1f / (ATLAS_SIZE / TEXTURE_SIZE);
         
         // Thread-local instance.
-        private static readonly ThreadLocal<MeshGenerator> _threadLocal = new ThreadLocal<MeshGenerator>(() => new MeshGenerator());
-        public static MeshGenerator LocalThreadInstance => _threadLocal.Value;
+        private static readonly ThreadLocal<VisualMesher> _threadLocal = new ThreadLocal<VisualMesher>(() => new VisualMesher());
+        public static VisualMesher LocalThreadInstance => _threadLocal.Value;
 
         // Resulting mesh data.
         private readonly List<Vertex> _vertices;
@@ -49,7 +50,7 @@ namespace VektorVoxels.Meshing {
             new VertexAttributeDescriptor(VertexAttribute.TexCoord2, VertexAttributeFormat.UNorm8, 4)
         };
 
-        public MeshGenerator() {
+        public VisualMesher() {
             _vertices = new List<Vertex>();
             _trianglesA = new List<int>();
             _trianglesB = new List<int>();
@@ -59,116 +60,6 @@ namespace VektorVoxels.Meshing {
             _lightWorkBuffer = new LightData[8];
             _triangleWorkBuffer = new int[6];
         }
-        
-        /// <summary>
-        /// Averages the 4 light values needed for a vertex.
-        /// </summary>
-        private static Color32 CalculateVertexLight(Color16 c0, Color16 c1, Color16 c2, Color16 c3) {
-            // Decompose each color into individual channels.
-            // This is necessary since working with Color16 directly involves a lot of bitwise ops.
-            c0.Decompose(out var c0r, out var c0g, out var c0b, out var c0a);
-            c1.Decompose(out var c1r, out var c1g, out var c1b, out var c1a);
-            c2.Decompose(out var c2r, out var c2g, out var c2b, out var c2a);
-            c3.Decompose(out var c3r, out var c3g, out var c3b, out var c3a);
-            
-            // Average each channel.
-            var r = (c0r + c1r + c2r + c3r) >> 2;
-            var g = (c0g + c1g + c2g + c3g) >> 2;
-            var b = (c0b + c1b + c2b + c3b) >> 2;
-            var a = (c0a + c1a + c2a + c3a) >> 2;
-            
-            // Scale to color 32 by multiplying by 17.
-            return new Color32(
-                (byte)(r * 17),
-                (byte)(g * 17),
-                (byte)(b * 17),
-                (byte)(a * 17)
-            );
-        }
-        
-        /// <summary>
-        /// Fetches data from a neighbor depending on position and if the neighbor was provided.
-        /// WARNING: This function might give you a stroke.
-        /// </summary>
-        private static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, out VoxelData v, out LightData l) {
-            Chunk neighbor;
-            int nvi;
-            bool exists;
-            
-            // Handle out of bounds Y values.
-            if (p.y < 0 || p.y >= d.y) {
-                v = VoxelData.Null();
-                l = new LightData(Color16.White(), Color16.Clear());
-                return;
-            }
-            
-            // Determine which neighbor the voxel lies in.
-            var offsetFlags = NeighborOffset.None;
-            offsetFlags |= p.z >= d.x ? NeighborOffset.North : NeighborOffset.None;
-            offsetFlags |= p.x >= d.x ? NeighborOffset.East : NeighborOffset.None;
-            offsetFlags |= p.z < 0 ? NeighborOffset.South : NeighborOffset.None;
-            offsetFlags |= p.x < 0 ? NeighborOffset.West : NeighborOffset.None;
-
-            switch (offsetFlags) {
-                case NeighborOffset.North:
-                    exists = (n.Flags & NeighborFlags.North) != 0;
-                    neighbor = n.North;
-                    nvi = VoxelUtility.VoxelIndex(p.x, p.y, 0, d);
-                    break;
-                case NeighborOffset.East:
-                    exists = (n.Flags & NeighborFlags.East) != 0;
-                    neighbor = n.East;
-                    nvi = VoxelUtility.VoxelIndex(0, p.y, p.z, d);
-                    break;
-                case NeighborOffset.South:
-                    exists = (n.Flags & NeighborFlags.South) != 0;
-                    neighbor = n.South;
-                    nvi = VoxelUtility.VoxelIndex(p.x, p.y, d.x - 1, d);
-                    break;
-                case NeighborOffset.West:
-                    exists = (n.Flags & NeighborFlags.West) != 0;
-                    neighbor = n.West;
-                    nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, p.z, d);
-                    break;
-                case NeighborOffset.NorthEast:
-                    exists = (n.Flags & NeighborFlags.NorthEast) != 0;
-                    neighbor = n.NorthEast;
-                    nvi = VoxelUtility.VoxelIndex(0, p.y, 0, d);
-                    break;
-                case NeighborOffset.SouthEast:
-                    exists = (n.Flags & NeighborFlags.SouthEast) != 0;
-                    neighbor = n.SouthEast;
-                    nvi = VoxelUtility.VoxelIndex(0, p.y, d.x - 1, d);
-                    break;
-                case NeighborOffset.SouthWest:
-                    exists = (n.Flags & NeighborFlags.SouthWest) != 0;
-                    neighbor = n.SouthWest;
-                    nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, d.x - 1, d);
-                    break;
-                case NeighborOffset.NorthWest:
-                    exists = (n.Flags & NeighborFlags.NorthWest) != 0;
-                    neighbor = n.NorthWest;
-                    nvi = VoxelUtility.VoxelIndex(d.x - 1, p.y, 0, d);
-                    break;
-                case NeighborOffset.None:
-                    exists = false;
-                    neighbor = null;
-                    nvi = 0;
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
-
-            if (exists) {
-                v = neighbor.VoxelData[nvi];
-                l = new LightData(neighbor.SunLight[nvi], neighbor.BlockLight[nvi]);
-            }
-            else {
-                v = VoxelData.Null();
-                l = new LightData(Color16.White(), Color16.Clear());
-            }
-        }
-        
 
         /// <summary>
         /// Generates mesh data for a given voxel grid.
@@ -223,7 +114,7 @@ namespace VektorVoxels.Meshing {
                                 light = new LightData(sunLight[npi], blockLight[npi]);
                             }
                             else {
-                                GetNeighborData(in np, in d, in neighbors, out neighbor, out light);
+                                MeshUtility.GetNeighborData(in np, in d, in neighbors, out neighbor, out light);
                             }
                             
                             // Only need to populate the light work buffer for smooth lighting.
@@ -237,7 +128,7 @@ namespace VektorVoxels.Meshing {
                                         smoothLightData = new LightData(sunLight[lni], blockLight[lni]);
                                     }
                                     else {
-                                        GetNeighborData(in lnp, in d, in neighbors, out _, out smoothLightData);
+                                        MeshUtility.GetNeighborData(in lnp, in d, in neighbors, out _, out smoothLightData);
                                     }
 
                                     _lightWorkBuffer[l] = smoothLightData;
@@ -277,24 +168,24 @@ namespace VektorVoxels.Meshing {
                                 // TODO: Could probably avoid two switch statements here.
                                 if (smoothLight) {
                                     vertexLightSun = v switch {
-                                        0 => CalculateVertexLight(light.Sun, _lightWorkBuffer[4].Sun,
+                                        0 => MeshUtility.CalculateVertexLight(light.Sun, _lightWorkBuffer[4].Sun,
                                             _lightWorkBuffer[5].Sun, _lightWorkBuffer[6].Sun),
-                                        1 => CalculateVertexLight(light.Sun, _lightWorkBuffer[6].Sun,
+                                        1 => MeshUtility.CalculateVertexLight(light.Sun, _lightWorkBuffer[6].Sun,
                                             _lightWorkBuffer[7].Sun, _lightWorkBuffer[0].Sun),
-                                        2 => CalculateVertexLight(light.Sun, _lightWorkBuffer[0].Sun,
+                                        2 => MeshUtility.CalculateVertexLight(light.Sun, _lightWorkBuffer[0].Sun,
                                             _lightWorkBuffer[1].Sun, _lightWorkBuffer[2].Sun),
-                                        3 => CalculateVertexLight(light.Sun, _lightWorkBuffer[2].Sun,
+                                        3 => MeshUtility.CalculateVertexLight(light.Sun, _lightWorkBuffer[2].Sun,
                                             _lightWorkBuffer[3].Sun, _lightWorkBuffer[4].Sun),
                                         _ => Color16.Clear().ToColor32()
                                     };
                                     vertexLightBlock = v switch {
-                                        0 => CalculateVertexLight(light.Block, _lightWorkBuffer[4].Block,
+                                        0 => MeshUtility.CalculateVertexLight(light.Block, _lightWorkBuffer[4].Block,
                                             _lightWorkBuffer[5].Block, _lightWorkBuffer[6].Block),
-                                        1 => CalculateVertexLight(light.Block, _lightWorkBuffer[6].Block,
+                                        1 => MeshUtility.CalculateVertexLight(light.Block, _lightWorkBuffer[6].Block,
                                             _lightWorkBuffer[7].Block, _lightWorkBuffer[0].Block),
-                                        2 => CalculateVertexLight(light.Block, _lightWorkBuffer[0].Block,
+                                        2 => MeshUtility.CalculateVertexLight(light.Block, _lightWorkBuffer[0].Block,
                                             _lightWorkBuffer[1].Block, _lightWorkBuffer[2].Block),
-                                        3 => CalculateVertexLight(light.Block, _lightWorkBuffer[2].Block,
+                                        3 => MeshUtility.CalculateVertexLight(light.Block, _lightWorkBuffer[2].Block,
                                             _lightWorkBuffer[3].Block, _lightWorkBuffer[4].Block),
                                         _ => Color16.Clear().ToColor32()
                                     };

@@ -13,6 +13,24 @@ namespace VektorVoxels.Voxels {
                    p.z >= 0 && p.z < d.x;
         }
         
+        /// <summary>
+        /// Determines if a height-map coordinate is within the local rect.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool InLocalRect(Vector2Int p, int d) {
+            return p.x >= 0 && p.x < d &&
+                   p.y >= 0 && p.y < d;
+        }
+        
+        /// <summary>
+        /// Determines if a height-map coordinate is within the local rect.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool InLocalRect(int x, int y, int d) {
+            return x >= 0 && x < d &&
+                   y >= 0 && y < d;
+        }
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int VoxelIndex(Vector3Int p, Vector2Int d) {
             return p.x + d.x * (p.y + d.y * p.z);
