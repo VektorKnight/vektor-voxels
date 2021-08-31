@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.Rendering;
+using VektorVoxels.Config;
 using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
@@ -46,6 +48,7 @@ namespace VektorVoxels.Chunks {
         // Event/update queues.
         private ConcurrentQueue<ChunkEvent> _eventQueue;
         private List<VoxelUpdate> _voxelUpdates;
+        private List<HeightUpdate> _heightUpdates;
         
         // Mesh data.
         private ChunkState _state = ChunkState.Uninitialized;
@@ -154,6 +157,7 @@ namespace VektorVoxels.Chunks {
             _threadLock = new ReaderWriterLockSlim();
             _eventQueue = new ConcurrentQueue<ChunkEvent>();
             _voxelUpdates = new List<VoxelUpdate>();
+            _heightUpdates = new List<HeightUpdate>();
             
             // Register with world events.
             WorldManager.OnWorldEvent += WorldEventHandler;
@@ -161,16 +165,35 @@ namespace VektorVoxels.Chunks {
             // Queue generation pass.
             QueueGenerationPass();
         }
-
+        
+        /// <summary>
+        /// Transforms a world coordinate to local voxel grid space.
+        /// The coordinate might lie outside of this chunk's local grid.
+        /// Be sure to verify the coordinate with VoxelUtility.InLocalGrid() before using it.
+        /// </summary>
         public Vector3Int WorldToLocal(Vector3 world) {
-            var d = WorldManager.CHUNK_SIZE;
             return new Vector3Int(
                 Mathf.FloorToInt(world.x - _worldPos.x),
                 Mathf.FloorToInt(world.y),
                 Mathf.FloorToInt(world.z - _worldPos.y)
             );
         }
-
+        
+        /// <summary>
+        /// Transforms a 2D height-map coordinate (X,Z) to local height-map space.
+        /// The coordinate might lie outside of this chunk's local rect.
+        /// Be sure to verify the coordinate with VoxelUtility.InLocalRect() before using it.
+        /// </summary>
+        public Vector2Int WorldToLocal(Vector2 world) {
+            return new Vector2Int(
+                Mathf.FloorToInt(world.x - _worldPos.x),
+                Mathf.FloorToInt(world.y - _worldPos.y)
+            );
+        }
+        
+        /// <summary>
+        /// Transforms a local voxel grid coordinate to world space.
+        /// </summary>
         public Vector3 LocalToWorld(Vector3Int local) {
             return new Vector3(
                 local.x + _worldPos.x,
@@ -178,9 +201,30 @@ namespace VektorVoxels.Chunks {
                 local.z + _worldPos.y
             );
         }
-
+        
+        /// <summary>
+        /// Transforms a local height-map coordinate to 2D world space (X,Z).
+        /// </summary>
+        public Vector2 LocalToWorld(Vector2Int local) {
+            return new Vector2(
+                local.x + _worldPos.x,
+                local.y + _worldPos.y
+            );
+        }
+        
+        /// <summary>
+        /// Queues a voxel update on this chunk at the specified position.
+        /// If the position is not within this chunk's local grid, an exception will be thrown.
+        /// </summary>
         public void QueueVoxelUpdate(VoxelUpdate update) {
             _voxelUpdates.Add(update);
+        }
+        
+        /// <summary>
+        /// Queues a height-map update on this chunk at the specified position.
+        /// </summary>
+        private void QueueHeightUpdate(HeightUpdate update) {
+            _heightUpdates.Add(update);
         }
         
         /// <summary>
@@ -427,7 +471,10 @@ namespace VektorVoxels.Chunks {
                     throw new ArgumentOutOfRangeException();
             }
         }
-
+        
+        /// <summary>
+        /// 
+        /// </summary>
         private void UpdateAvailableNeighbors() {
             _neighborFlags = NeighborFlags.None;
             for (var i = 0; i < 8; i++) {
@@ -451,16 +498,20 @@ namespace VektorVoxels.Chunks {
                 neighbor._isDirty = true;
             }
         }
-
+        
+        /// <summary>
+        /// Updates a height-map column by iterating from the top of the chunk and stopping at the first voxel hit.
+        /// </summary>
         private void UpdateHeightMapColumn(Vector2Int pos) {
             var d = WorldManager.CHUNK_SIZE;
+            var hi = VoxelUtility.HeightIndex(pos, d.x);
+
             for (var y = d.y - 1; y >= 0; y--) {
                 var vi = VoxelUtility.VoxelIndex(pos.x, y, pos.y, d);
                 var voxel = _voxelData[vi];
 
                 if (voxel.IsNull) continue;
                 
-                var hi = VoxelUtility.HeightIndex(pos, d.x);
                 if (y == 0) {
                     _heightMap[hi] = new HeightData(0, true);
                 }
@@ -468,6 +519,50 @@ namespace VektorVoxels.Chunks {
                     _heightMap[hi] = new HeightData((byte)y, true);
                     return;
                 }
+            }
+        }
+        
+        /// <summary>
+        /// Update a 3x3 section of heightmap data.
+        /// This is required for any voxel update so that sunlight can propagate correctly.
+        /// </summary>
+        private void UpdateHeightMapRegion(Vector2Int center) {
+            var d = WorldManager.CHUNK_SIZE.x;
+            for (var y = -1; y < 1; y++) {
+                for (var x = -1; x < 1; x++) {
+                    if (!VoxelUtility.InLocalRect(center.x + x, center.y + y, d)) {
+                        continue;
+                    }
+
+                    UpdateHeightMapColumn(new Vector2Int(center.x + x,center.y + y));
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Queues height updates on all available neighbors.
+        /// If the update lies outside the neighbor's local grid, it will just be ignored.
+        /// TODO: This is kinda lazy, maybe check if we even need to poke the neighbor.
+        /// </summary>
+        private void UpdateNeighborHeightMaps(Vector2Int center) {
+            for (var i = 0; i < 8; i++) {
+                var neighborId = _chunkId + _chunkNeighbors[i];
+
+                if (!WorldManager.Instance.IsChunkInView(neighborId)) {
+                    continue;
+                }
+
+                if (!WorldManager.Instance.IsChunkInBounds(neighborId)) {
+                    continue;
+                }
+
+                if (!WorldManager.Instance.IsChunkLoaded(neighborId)) {
+                    continue;
+                }
+
+                var neighbor = WorldManager.Instance.Chunks[neighborId.x, neighborId.y];
+                var neighborPos = neighbor.WorldToLocal(LocalToWorld(center));
+                neighbor.QueueHeightUpdate(new HeightUpdate(neighborPos, true));
             }
         }
         
@@ -486,14 +581,16 @@ namespace VektorVoxels.Chunks {
                 if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
                 
                 // Process event queue.
-                _threadLock.EnterWriteLock();
+                //_threadLock.EnterWriteLock();
                 while (_eventQueue.TryDequeue(out var e)) {
                     ProcessChunkEvent(e);
                 }
                 
-                // Process voxel updates.
-                if (_voxelUpdates.Count > 0) {
+                // Process voxel and height updates.
+                if (_voxelUpdates.Count > 0 || _heightUpdates.Count > 0) {
                     var d = WorldManager.CHUNK_SIZE;
+                    
+                    // Process voxel updates and queue height updates.
                     foreach (var update in _voxelUpdates) {
                         if (!VoxelUtility.InLocalGrid(update.Position, WorldManager.CHUNK_SIZE)) {
                             Debug.Log(update.Position);
@@ -502,26 +599,43 @@ namespace VektorVoxels.Chunks {
                         }
 
                         _voxelData[VoxelUtility.VoxelIndex(update.Position, d)] = update.Data;
-                        UpdateHeightMapColumn(new Vector2Int(update.Position.x, update.Position.z));
+                        _heightUpdates.Add(new HeightUpdate(new Vector2Int(update.Position.x, update.Position.z), false));
                     }
                     _voxelUpdates.Clear();
+                    
+                    // Process height updates.
+                    foreach (var update in _heightUpdates) {
+                        UpdateHeightMapRegion(update.Position);
+
+                        if (!update.FromNeighbor) {
+                            UpdateNeighborHeightMaps(update.Position);
+                        }
+                    }
+                    _heightUpdates.Clear();
+                    
+                    // Flag chunk as dirty and inform neighbors to update.
                     _isDirty = true;
                     UpdateAvailableNeighbors();
                 }
+                //_threadLock.ExitWriteLock();
+            }
+        }
 
-                if (Input.GetKeyDown(KeyCode.F5)) {
-                    Reload(true);
-                }
+        public void OnLateTick() {
+            if ((_waitingForJob || _state != ChunkState.Ready) && _state != ChunkState.Inactive) return;
+            if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
+            
+            if (Input.GetKeyDown(KeyCode.F5)) {
+                Reload(true);
+            }
 
-                // Handle flags.
-                if (_waitingForReload || _isDirty) {
-                    Reload();
-                }
+            // Handle flags.
+            if (_waitingForReload || _isDirty) {
+                Reload();
+            }
 
-                if (_waitingForUnload) {
-                    Unload();
-                }
-                _threadLock.ExitWriteLock();
+            if (_waitingForUnload) {
+                Unload();
             }
         }
 

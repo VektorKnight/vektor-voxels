@@ -29,7 +29,7 @@ namespace VektorVoxels.Voxels {
             
             // Generate rects for each index.
             TextureRects = new Rect[6];
-            var uvWidth = MeshGenerator.TEX_UV_WIDTH;
+            var uvWidth = VisualMesher.TEX_UV_WIDTH;
             atlasIndex *= uvWidth;
             for (var i = 0; i < 6; i++) {
                 TextureRects[i] = new Rect(
@@ -54,7 +54,7 @@ namespace VektorVoxels.Voxels {
 
             // Generate rects for each index.
             TextureRects = new Rect[6];
-            var uvWidth = MeshGenerator.TEX_UV_WIDTH;
+            var uvWidth = VisualMesher.TEX_UV_WIDTH;
             for (var i = 0; i < 6; i++) {
                 var atlasIndex = atlasIndices[i] * uvWidth;
                 TextureRects[i] = new Rect(

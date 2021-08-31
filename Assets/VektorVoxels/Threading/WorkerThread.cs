@@ -6,7 +6,7 @@ using VektorVoxels.Threading.Jobs;
 
 namespace VektorVoxels.Threading {
 	public sealed class WorkerThread {
-        private readonly BlockingCollection<PoolJob> _workQueue;
+        private readonly BlockingCollection<IVektorJob> _workQueue;
         private readonly ThreadConfig _config;
         private readonly Thread _thread;
         
@@ -31,7 +31,7 @@ namespace VektorVoxels.Threading {
         /// </summary>
         public Exception LastException => _lastException;
 
-        public WorkerThread(BlockingCollection<PoolJob> workQueue, ThreadConfig config) {
+        public WorkerThread(BlockingCollection<IVektorJob> workQueue, ThreadConfig config) {
             _workQueue = workQueue;
             _config = config;
 
@@ -68,16 +68,29 @@ namespace VektorVoxels.Threading {
                 
                 // Check for work.
                 var hasWork = _workQueue.TryTake(out var job);
+
+                if (hasWork && job == null) {
+                    Debug.LogError("Unexpected null job on pool!");
+                    continue;
+                }
                 
                 // Try to invoke the job and reset the cycle counter and thread status.
                 if (hasWork) {
                     try {
-                        job?.Execute();
+                        job.Execute();
+
+                        if (job.CompletionState == JobCompletionState.None) {
+                            job.SignalCompletion(JobCompletionState.Completed);
+                        }
                     }
                     catch (Exception e) {
                         Debug.LogError($"Worker thread has encountered an exception while processing a job.");
                         Debug.LogException(e);
                         _lastException = e;
+                        
+                        if (job.CompletionState == JobCompletionState.None) {
+                            job.SignalCompletion(JobCompletionState.Aborted);
+                        }
                     }
                     
                     _cycleCounter = 0;

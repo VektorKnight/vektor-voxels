@@ -335,7 +335,7 @@ MonoBehaviour:
   _upperRight: {fileID: 1130675222}
   _image: {fileID: 1961275186}
   _player: {fileID: 1494866693}
-  _profilerSize: {x: 256, y: 64, z: 2}
+  _profilerSize: {x: 256, y: 64}
 --- !u!1 &1012959390
 GameObject:
   m_ObjectHideFlags: 0
@@ -657,7 +657,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f4b119522494d298acf1108a644482c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _chunkSize: {x: 16, y: 256}
   _maxChunks: {x: 64, y: 64}
   _useSmoothLighting: 1
   _chunkPrefab: {fileID: 3355102642434385408, guid: b892d8b0ef44ad844afcb94d26bfc045, type: 3}
