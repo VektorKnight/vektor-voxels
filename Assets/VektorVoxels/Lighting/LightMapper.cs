@@ -15,7 +15,7 @@ namespace VektorVoxels.Lighting {
         private static readonly ThreadLocal<LightMapper> _threadLocal = new ThreadLocal<LightMapper>(() => new LightMapper());
         public static LightMapper LocalThreadInstance => _threadLocal.Value;
 
-        private static readonly Vector3Int[] _sunNeighbors = {
+        public static readonly Vector3Int[] _sunNeighbors = {
             Vector3Int.forward, 
             Vector3Int.right, 
             Vector3Int.back, 
@@ -66,10 +66,10 @@ namespace VektorVoxels.Lighting {
             }
         }
         
-        private void ProcessNeighborBoundarySun(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
+        private void PropagateBoundarySun(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
             // Iterate column starting at the heightmap value.
             var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
-            for (var y = (int)(neighborHeight.Value + 1); y >= 0; y--) {
+            for (var y = neighborHeight.Value + 1; y >= 0; y--) {
                 var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
                 var voxel = home.VoxelData[vpi];
                     
@@ -101,8 +101,7 @@ namespace VektorVoxels.Lighting {
             }
         }
         
-        private void ProcessNeighborBoundaryBlock(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
-            var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
+        private void PropagateBoundaryBlock(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
             // Iterate column starting at the top.
             for (var y = d.y - 1; y >= 0; y--) {
                 var vpi = VoxelUtility.VoxelIndex(hp.x, y, hp.y, d);
@@ -160,7 +159,7 @@ namespace VektorVoxels.Lighting {
                 node.Value.Decompose(out var nr, out var ng, out var nb, out _);
                 
                 // Done propagating block light if the node value is <=1 on all channels.
-                if (!sun && nr <= 1 && ng <= 1 && nb <= 1) {
+                if (nr <= 1 && ng <= 1 && nb <= 1) {
                     continue;
                 }
 
@@ -184,18 +183,10 @@ namespace VektorVoxels.Lighting {
                     }
                     
                     // Decrement light on propagation unless the light type is sun and we're propagating down.
-                    int dr, dg, db;
-                    if (sun && i == 5) {
-                        dr = nr;
-                        dg = ng;
-                        db = nb;
-                    }
-                    else {
-                        dr = nr - 1;
-                        dg = ng - 1;
-                        db = nb - 1;
-                    }
-
+                    var dr = nr - 1;
+                    var dg = ng - 1;
+                    var db = nb - 1;
+                    
                     // Decompose neighbor attenuation and subtract from decremented node values.
                     neighbor.ColorData.Decompose(out var nar, out var nag, out var nab, out _);
                     var ar = Mathf.Clamp(dr - nar, 0, 15);
@@ -236,30 +227,45 @@ namespace VektorVoxels.Lighting {
                 for (var x = 0; x < d.x; x++) {
                     // Grab current height data.
                     ref var heightData = ref heightMap[VoxelUtility.HeightIndex(x, z, d.x)];
+                    
+                    // Determine max of the current height and its 4 immediate neighbors.
+                    // This prevents unnecessary propagation checks.
+                    var regionMax = (int)heightData.Value;
+                    for (var nz = -1; nz <= 1; nz++) {
+                        for (var nx = -1; nx <= 1; nx++) {
+                            // Skip corners and center.
+                            if (nx != 0 && nz != 0 || nx == 0 && nz == 0) {
+                                continue;
+                            }
+                            
+                            // Skip out of bounds cells.
+                            if (!VoxelUtility.InLocalRect(x + nx, z + nz, d.x)) {
+                                continue;
+                            }
+                            
+                            // Get neighbor height and update max.
+                            var nhi = VoxelUtility.HeightIndex(x + nx, z + nz, d.x);
+                            regionMax = Mathf.Max(regionMax, heightMap[nhi].Value);
+                        }
+                    }
 
                     // Iterate the entire column.
                     for (var y = d.y - 1; y >= 0; y--) {
                         // Grab current voxel.
                         vp.x = x; vp.y = y; vp.z = z;
                         var vpi = VoxelUtility.VoxelIndex(x, y, z, d);
-
-                        // Set all values above the heightmap to full white.
-                        sunLight[vpi] = new Color16(15, 15, 15, 0);
                         
-                        // Set any values at or below the heightmap to zero and continue.
-                        if (y <= heightData.Value) {
+                        // Values above the map get set to full sunlight.
+                        // Values below are set to none or zero.
+                        if (y > heightData.Value) {
+                            sunLight[vpi] = new Color16(15, 15, 15, 0);
+                        }
+                        else {
                             sunLight[vpi] = Color16.Clear();
-                            heightData.Dirty = false;
-                            continue;
                         }
-                        
-                        // Skip clean height values.
-                        if (!heightData.Dirty) {
-                            continue;
-                        }
-                        
-                        // Clear dirty flag.
-                        heightData.Dirty = false;
+
+                        // Skip propagation on values above the region maximum or below the heightmap.
+                        if (y > regionMax || y <= heightData.Value) continue;
 
                         // Check neighbors for null/non-opaque blocks below the heightmap.
                         // Propagation nodes will be queued for these locations.
@@ -273,11 +279,11 @@ namespace VektorVoxels.Lighting {
                             }
                             
                             // Grab height value of neighbor position.
-                            ref readonly var neighbor = ref voxelData[npi];
+                            var neighbor = voxelData[npi];
                             var neighborHeight = heightMap[VoxelUtility.HeightIndex(np.x, np.z, d.x)].Value;
 
                             // Node will be placed if the neighbor voxel is below the height value at that position and null or translucent.
-                            if (np.y < neighborHeight && (neighbor.Id == 0 || (neighbor.Flags & VoxelFlags.AlphaRender) != 0)) {
+                            if (np.y < neighborHeight && (neighbor.IsNull || neighbor.HasFlag(VoxelFlags.AlphaRender))) {
                                 // Place a node if any neighbor is below the heightmap and null/translucent.
                                 _sunNodes.Push(new LightNode(vp, new Color16(15, 15, 15, 0)));
 
@@ -286,6 +292,9 @@ namespace VektorVoxels.Lighting {
                             }
                         }
                     }
+                    
+                    // Clear dirty flag.
+                    heightData.Dirty = false;
                 }
             }
         }
@@ -305,26 +314,26 @@ namespace VektorVoxels.Lighting {
             for (var i = 0; i < d.x; i++) {
                 // Northern boundary.
                 if ((neighbors.Flags & NeighborFlags.North) != 0) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.North, new Vector2Int(i, d.x - 1), new Vector2Int(i, 0), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.North, new Vector2Int(i, d.x - 1), new Vector2Int(i, 0), d);
+                    PropagateBoundarySun(chunk, neighbors.North, new Vector2Int(i, d.x - 1), new Vector2Int(i, 0), d);
+                    PropagateBoundaryBlock(chunk, neighbors.North, new Vector2Int(i, d.x - 1), new Vector2Int(i, 0), d);
                 }
 
                 // Eastern boundary.
                 if ((neighbors.Flags & NeighborFlags.East) != 0) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.East, new Vector2Int(d.x - 1, i), new Vector2Int(0, i), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.East, new Vector2Int(d.x - 1, i), new Vector2Int(0, i), d);
+                    PropagateBoundarySun(chunk, neighbors.East, new Vector2Int(d.x - 1, i), new Vector2Int(0, i), d);
+                    PropagateBoundaryBlock(chunk, neighbors.East, new Vector2Int(d.x - 1, i), new Vector2Int(0, i), d);
                 }
 
                 // Southern boundary.
                 if ((neighbors.Flags & NeighborFlags.South) != 0) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.South, new Vector2Int(i, 0), new Vector2Int(i, d.x - 1), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.South, new Vector2Int(i, 0), new Vector2Int(i, d.x - 1), d);
+                    PropagateBoundarySun(chunk, neighbors.South, new Vector2Int(i, 0), new Vector2Int(i, d.x - 1), d);
+                    PropagateBoundaryBlock(chunk, neighbors.South, new Vector2Int(i, 0), new Vector2Int(i, d.x - 1), d);
                 }
 
                 // Western boundary.
                 if ((neighbors.Flags & NeighborFlags.West) != 0) {
-                    ProcessNeighborBoundarySun(chunk, neighbors.West, new Vector2Int(0, i), new Vector2Int(d.x - 1, i), d);
-                    ProcessNeighborBoundaryBlock(chunk, neighbors.West, new Vector2Int(0, i), new Vector2Int(d.x - 1, i), d);
+                    PropagateBoundarySun(chunk, neighbors.West, new Vector2Int(0, i), new Vector2Int(d.x - 1, i), d);
+                    PropagateBoundaryBlock(chunk, neighbors.West, new Vector2Int(0, i), new Vector2Int(d.x - 1, i), d);
                 }
             }
 

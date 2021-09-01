@@ -59,7 +59,7 @@ namespace VektorVoxels.Generation {
                     var height = Mathf.RoundToInt(perlin * _maxHeight);
                     
                     // Write heightmap values.
-                    chunk.HeightMap[VoxelUtility.HeightIndex(x, z, d.x)] = new HeightData((byte)height, true);
+                    //chunk.HeightMap[VoxelUtility.HeightIndex(x, z, d.x)] = new HeightData((byte)(height - 1), true);
 
                     var layerY = height;
                     foreach (var layer in _layers) {
@@ -86,6 +86,8 @@ namespace VektorVoxels.Generation {
                     }
                 }
             }
+            
+            chunk.RebuildHeightMap();
         }
     }
 }

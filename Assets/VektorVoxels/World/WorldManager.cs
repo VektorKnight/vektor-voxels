@@ -8,6 +8,7 @@ using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
+using VektorVoxels.Voxels;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
@@ -107,7 +108,7 @@ namespace VektorVoxels.World {
             return new Vector2Int(pos.x + _maxChunks.x / 2, pos.y + _maxChunks.y / 2);
         }
         
-        public Vector2Int WorldToChunkPos(in Vector3 pos) {
+        public Vector2Int WorldToChunkPos(Vector3 pos) {
             return new Vector2Int(
                 Mathf.FloorToInt(pos.x / CHUNK_SIZE.x),
                 Mathf.FloorToInt(pos.z / CHUNK_SIZE.x)
@@ -115,10 +116,22 @@ namespace VektorVoxels.World {
         }
 
         public bool TryGetChunk(Vector3 world, out Chunk chunk) {
-            var id = ChunkIdFromPos(WorldToChunkPos(in world));
+            var id = ChunkIdFromPos(WorldToChunkPos(world));
 
             chunk = _chunks[id.x, id.y];
             return IsChunkLoaded(id);
+        }
+        
+        public bool TryQueueVoxelUpdate(Vector3 position, VoxelData data) {
+            // Fail if chunk is not available.
+            if (!TryGetChunk(position, out var chunk)) return false;
+            
+            chunk.QueueVoxelUpdate(new VoxelUpdate(
+                chunk.WorldToLocal(position),
+                data
+            ));
+            
+            return true;
         }
 
         private async void Awake() {

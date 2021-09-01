@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Diagnostics;
 using Unity.Jobs;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Config;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
+using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Lighting {
     public class LightJob : VektorJob {
@@ -29,7 +31,7 @@ namespace VektorVoxels.Lighting {
                 SignalCompletion(JobCompletionState.Aborted);
                 return;
             }
-
+            
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
                 var lightMapper = LightMapper.LocalThreadInstance;
                 switch (_pass) {
@@ -37,8 +39,8 @@ namespace VektorVoxels.Lighting {
                         break;
                     case LightPass.First:
                         lightMapper.InitializeSunLightFirstPass(_chunk);
-                        lightMapper.PropagateSunLight(_chunk);
                         lightMapper.InitializeBlockLightFirstPass(_chunk);
+                        lightMapper.PropagateSunLight(_chunk);
                         lightMapper.PropagateBlockLight(_chunk);
                         break;
                     case LightPass.Second:
@@ -56,7 +58,7 @@ namespace VektorVoxels.Lighting {
                 }
                 
                 _chunk.ThreadLock.ExitWriteLock();
-                
+
                 // Signal completion.
                 SignalCompletion(JobCompletionState.Completed);
             
