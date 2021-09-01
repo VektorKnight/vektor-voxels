@@ -47,9 +47,8 @@ namespace VektorVoxels.Chunks {
         
         // Event/update queues.
         private ConcurrentQueue<ChunkEvent> _eventQueue;
-        private List<VoxelUpdate> _voxelUpdates;
-        private List<HeightUpdate> _heightUpdates;
-        
+        private Queue<VoxelUpdate> _voxelUpdates;
+
         // Mesh data.
         private ChunkState _state = ChunkState.Uninitialized;
         private bool _waitingForJob;
@@ -156,9 +155,8 @@ namespace VektorVoxels.Chunks {
             // Thread safety.
             _threadLock = new ReaderWriterLockSlim();
             _eventQueue = new ConcurrentQueue<ChunkEvent>();
-            _voxelUpdates = new List<VoxelUpdate>();
-            _heightUpdates = new List<HeightUpdate>();
-            
+            _voxelUpdates = new Queue<VoxelUpdate>();
+
             // Register with world events.
             WorldManager.OnWorldEvent += WorldEventHandler;
             
@@ -217,16 +215,9 @@ namespace VektorVoxels.Chunks {
         /// If the position is not within this chunk's local grid, an exception will be thrown.
         /// </summary>
         public void QueueVoxelUpdate(VoxelUpdate update) {
-            _voxelUpdates.Add(update);
+            _voxelUpdates.Enqueue(update);
         }
-        
-        /// <summary>
-        /// Queues a height-map update on this chunk at the specified position.
-        /// </summary>
-        private void QueueHeightUpdate(HeightUpdate update) {
-            _heightUpdates.Add(update);
-        }
-        
+
         /// <summary>
         /// Processes events from the world manager.
         /// </summary>
@@ -523,49 +514,19 @@ namespace VektorVoxels.Chunks {
         }
         
         /// <summary>
-        /// Update a 3x3 section of heightmap data.
-        /// This is required for any voxel update so that sunlight can propagate correctly.
+        /// Rebuilds the entire heightmap for this chunk.
         /// </summary>
-        private void UpdateHeightMapRegion(Vector2Int center) {
+        public void RebuildHeightMap() {
             var d = WorldManager.CHUNK_SIZE.x;
-            for (var y = -1; y < 1; y++) {
-                for (var x = -1; x < 1; x++) {
-                    if (!VoxelUtility.InLocalRect(center.x + x, center.y + y, d)) {
-                        continue;
-                    }
-
-                    UpdateHeightMapColumn(new Vector2Int(center.x + x,center.y + y));
+            var hp = Vector2Int.zero;
+            for (var z = 0; z < d; z++) {
+                for (var x = 0; x < d; x++) {
+                    hp.x = x; hp.y = z;
+                    UpdateHeightMapColumn(hp);
                 }
             }
         }
-        
-        /// <summary>
-        /// Queues height updates on all available neighbors.
-        /// If the update lies outside the neighbor's local grid, it will just be ignored.
-        /// TODO: This is kinda lazy, maybe check if we even need to poke the neighbor.
-        /// </summary>
-        private void UpdateNeighborHeightMaps(Vector2Int center) {
-            for (var i = 0; i < 8; i++) {
-                var neighborId = _chunkId + _chunkNeighbors[i];
 
-                if (!WorldManager.Instance.IsChunkInView(neighborId)) {
-                    continue;
-                }
-
-                if (!WorldManager.Instance.IsChunkInBounds(neighborId)) {
-                    continue;
-                }
-
-                if (!WorldManager.Instance.IsChunkLoaded(neighborId)) {
-                    continue;
-                }
-
-                var neighbor = WorldManager.Instance.Chunks[neighborId.x, neighborId.y];
-                var neighborPos = neighbor.WorldToLocal(LocalToWorld(center));
-                neighbor.QueueHeightUpdate(new HeightUpdate(neighborPos, true));
-            }
-        }
-        
         /// <summary>
         /// Designed to be called from the World Manager.
         /// Same purpose as Unity Update() but with finer control over timing.
@@ -581,17 +542,17 @@ namespace VektorVoxels.Chunks {
                 if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
                 
                 // Process event queue.
-                //_threadLock.EnterWriteLock();
                 while (_eventQueue.TryDequeue(out var e)) {
                     ProcessChunkEvent(e);
                 }
                 
                 // Process voxel and height updates.
-                if (_voxelUpdates.Count > 0 || _heightUpdates.Count > 0) {
+                if (_voxelUpdates.Count > 0) {
                     var d = WorldManager.CHUNK_SIZE;
-                    
+
                     // Process voxel updates and queue height updates.
-                    foreach (var update in _voxelUpdates) {
+                    while (_voxelUpdates.Count > 0) {
+                        var update = _voxelUpdates.Dequeue();
                         if (!VoxelUtility.InLocalGrid(update.Position, WorldManager.CHUNK_SIZE)) {
                             Debug.Log(update.Position);
                             Debug.Log(_chunkPos);
@@ -599,30 +560,18 @@ namespace VektorVoxels.Chunks {
                         }
 
                         _voxelData[VoxelUtility.VoxelIndex(update.Position, d)] = update.Data;
-                        _heightUpdates.Add(new HeightUpdate(new Vector2Int(update.Position.x, update.Position.z), false));
+                        UpdateHeightMapColumn(new Vector2Int(update.Position.x, update.Position.z));
                     }
-                    _voxelUpdates.Clear();
                     
-                    // Process height updates.
-                    foreach (var update in _heightUpdates) {
-                        UpdateHeightMapRegion(update.Position);
-
-                        if (!update.FromNeighbor) {
-                            UpdateNeighborHeightMaps(update.Position);
-                        }
-                    }
-                    _heightUpdates.Clear();
-                    
-                    // Flag chunk as dirty and inform neighbors to update.
                     _isDirty = true;
                     UpdateAvailableNeighbors();
                 }
-                //_threadLock.ExitWriteLock();
             }
         }
 
         public void OnLateTick() {
             if ((_waitingForJob || _state != ChunkState.Ready) && _state != ChunkState.Inactive) return;
+            
             if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
             
             if (Input.GetKeyDown(KeyCode.F5)) {
