@@ -22,8 +22,8 @@ namespace VektorVoxels.World {
     ///
     /// Due to Unity's 32-bit transform, you should never define a world larger than ~20km in X or Z.
     /// </summary>
-    public class WorldManager : MonoBehaviour {
-        public static WorldManager Instance { get; private set; }
+    public class VoxelWorld : MonoBehaviour {
+        public static VoxelWorld Instance { get; private set; }
         
         /// <summary>
         /// Width and height of chunks.

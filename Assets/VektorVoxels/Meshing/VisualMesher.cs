@@ -73,8 +73,8 @@ namespace VektorVoxels.Meshing {
             var voxelGrid = chunk.VoxelData;
             var sunLight = chunk.SunLight;
             var blockLight = chunk.BlockLight;
-            var d = WorldManager.CHUNK_SIZE;
-            var smoothLight = WorldManager.Instance.UseSmoothLighting;
+            var d = VoxelWorld.CHUNK_SIZE;
+            var smoothLight = VoxelWorld.Instance.UseSmoothLighting;
             
             // Clear work buffers.
             _vertices.Clear();

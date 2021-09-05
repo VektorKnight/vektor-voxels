@@ -50,7 +50,7 @@ namespace VektorVoxels.Generation {
         }
         
         public void ProcessChunk(in Chunk chunk) {
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             var offset = chunk.ChunkId * d.x;
             for (var z = 0; z < d.x; z++) {
                 for (var x = 0; x < d.x; x++) {

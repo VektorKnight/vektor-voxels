@@ -47,12 +47,12 @@ namespace VektorVoxels.UI {
             }
 
             var position = _player.position;
-            var chunk = WorldManager.Instance.WorldToChunkPos(position);
+            var chunk = VoxelWorld.Instance.WorldToChunkPos(position);
             
             _upperLeft.text = $"{Application.productName} | {Application.version}\n" +
                               $"FPS: {1f / Time.deltaTime:n0}\n" +
-                              $"Chunks/Tick: {WorldManager.Instance.ChunksPerTick}\n" +
-                              $"View: {WorldManager.Instance.ViewDistance}\n" +
+                              $"Chunks/Tick: {VoxelWorld.Instance.ChunksPerTick}\n" +
+                              $"View: {VoxelWorld.Instance.ViewDistance}\n" +
                               $"World: {_player.transform.position}\n" +
                               $"Chunk: {chunk}";
         }

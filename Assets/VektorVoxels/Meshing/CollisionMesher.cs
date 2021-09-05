@@ -52,7 +52,7 @@ namespace VektorVoxels.Meshing {
             
             // Shortcut some references.
             var voxels = chunk.VoxelData;
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             
             // Process each voxel and add the appropriate faces.
             // Note: variable naming may seem a bit weird here.
