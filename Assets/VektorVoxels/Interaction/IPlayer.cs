@@ -9,9 +9,24 @@ namespace VektorVoxels.Interaction {
         Vector3 Position { get; }
         
         /// <summary>
+        /// Current quaternion rotation of the player.
+        /// </summary>
+        Quaternion Rotation { get; }
+
+        /// <summary>
         /// Current euler rotation of the player.
         /// </summary>
-        Vector3 Rotation { get; }
+        Vector3 RotationEuler { get; }
+        
+        /// <summary>
+        /// Current velocity of the player.
+        /// </summary>
+        Vector3 Velocity { get; }
+        
+        /// <summary>
+        /// Whether or not the player is currently grounded.
+        /// </summary>
+        bool Grounded { get; }
 
         /// <summary>
         /// Sets the current voxel in the player's hand.

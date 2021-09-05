@@ -127,7 +127,7 @@ namespace VektorVoxels.World {
             if (!TryGetChunk(position, out var chunk)) return false;
             
             chunk.QueueVoxelUpdate(new VoxelUpdate(
-                chunk.WorldToLocal(position),
+                chunk.WorldToVoxel(position),
                 data
             ));
             

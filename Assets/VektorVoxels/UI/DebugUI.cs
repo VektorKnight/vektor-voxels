@@ -36,9 +36,9 @@ namespace VektorVoxels.UI {
         }
 
         private void Update() {
-            if (Input.GetKeyDown(KeyCode.F3)) {
-                _canvas.enabled = !_canvas.enabled;
-            }
+            //if (Input.GetKeyDown(KeyCode.F3)) {
+                //_canvas.enabled = !_canvas.enabled;
+            //}
             
             _profiler.PushFrameTime(Time.deltaTime);
 
