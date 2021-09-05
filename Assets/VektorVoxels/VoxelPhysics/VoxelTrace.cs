@@ -15,13 +15,14 @@ namespace VektorVoxels.VoxelPhysics {
         }
         
         /// <summary>
-        /// Traces a ray through a given voxel grid.
+        /// Traces a ray through a given chunk.
         /// </summary>
         public static bool TraceRay(Ray ray, Chunk chunk, float distance, out VoxelTraceResult result) {
             // Calculate step values.
             var l = ray.direction * distance;
             var start = chunk.WorldToLocal(ray.origin);
-            var chunkSize = WorldManager.CHUNK_SIZE;
+            var voxel = start.Floor();
+            var chunkSize = VoxelWorld.CHUNK_SIZE;
             
             // Direction along each axis to step (+/-).
             var step = new Vector3Int(
@@ -37,8 +38,6 @@ namespace VektorVoxels.VoxelPhysics {
                 1f / Mathf.Abs(l.z)
             );
 
-            var voxel = start.Floor();
-            
             // Make sure we didn't just start in a solid voxel.
             if (VoxelUtility.InLocalGrid(voxel, chunkSize)) {
                 var vi = VoxelUtility.VoxelIndex(voxel, chunkSize);
@@ -63,10 +62,10 @@ namespace VektorVoxels.VoxelPhysics {
                 ? ((voxel.z + 1) - start.z) * stepSize.z
                 : (start.z - voxel.z) * stepSize.z;
 
-            // Loop till we hit a voxel or reach max distance.
+            // Loop till we hit a valid voxel or reach max distance.
             var dSqr = distance * distance;
             while (true) {
-                // DDA
+                // Step along the smallest component of delta.
                 if (delta.x < delta.y) {
                     if (delta.x < delta.z) {
                         voxel.x += step.x;

@@ -102,7 +102,7 @@ namespace VektorVoxels.Chunks {
             
             _chunkId = id;
             _chunkPos = pos;
-            _worldPos = pos * WorldManager.CHUNK_SIZE.x;
+            _worldPos = pos * VoxelWorld.CHUNK_SIZE.x;
         }
 
         /// <summary>
@@ -138,7 +138,7 @@ namespace VektorVoxels.Chunks {
             _meshCollider.sharedMesh = _mesh;
             
             // World data.
-            var dimensions = WorldManager.CHUNK_SIZE;
+            var dimensions = VoxelWorld.CHUNK_SIZE;
             var dataSize = dimensions.x * dimensions.y * dimensions.x;
             _voxelData = new VoxelData[dataSize];
             _sunLight = new Color16[dataSize];
@@ -158,7 +158,7 @@ namespace VektorVoxels.Chunks {
             _voxelUpdates = new Queue<VoxelUpdate>();
 
             // Register with world events.
-            WorldManager.OnWorldEvent += WorldEventHandler;
+            VoxelWorld.OnWorldEvent += WorldEventHandler;
             
             // Queue generation pass.
             QueueGenerationPass();
@@ -176,7 +176,10 @@ namespace VektorVoxels.Chunks {
                 Mathf.FloorToInt(world.z - _worldPos.y)
             );
         }
-
+        
+        /// <summary>
+        /// Transforms a world coordinate to local chunk space.
+        /// </summary>
         public Vector3 WorldToLocal(Vector3 world) {
             return new Vector3(
                 world.x - _worldPos.x,
@@ -207,17 +210,7 @@ namespace VektorVoxels.Chunks {
                 local.z + _worldPos.y
             );
         }
-        
-        /// <summary>
-        /// Transforms a local height-map coordinate to 2D world space (X,Z).
-        /// </summary>
-        public Vector2 LocalToWorld(Vector2Int local) {
-            return new Vector2(
-                local.x + _worldPos.x,
-                local.y + _worldPos.y
-            );
-        }
-        
+
         /// <summary>
         /// Queues a voxel update on this chunk at the specified position.
         /// If the position is not within this chunk's local grid, an exception will be thrown.
@@ -232,7 +225,7 @@ namespace VektorVoxels.Chunks {
         private void WorldEventHandler(WorldEvent e) {
             switch (e) {
                 case WorldEvent.LoadRegionChanged:
-                    var inView = WorldManager.Instance.IsChunkInView(_chunkId);
+                    var inView = VoxelWorld.Instance.IsChunkInView(_chunkId);
 
                     if (!inView) {
                         _waitingForUnload = true;
@@ -432,20 +425,20 @@ namespace VektorVoxels.Chunks {
                 _neighborBuffer[i] = null;
                 var neighborId = _chunkId + _chunkNeighbors[i];
                 
-                if (!WorldManager.Instance.IsChunkInView(neighborId)) {
+                if (!VoxelWorld.Instance.IsChunkInView(neighborId)) {
                     _partialLoad = true;
                     continue;
                 }
                 
-                if (!WorldManager.Instance.IsChunkInBounds(neighborId)) {
+                if (!VoxelWorld.Instance.IsChunkInBounds(neighborId)) {
                     continue;
                 }
 
-                if (!WorldManager.Instance.IsChunkLoaded(neighborId)) {
+                if (!VoxelWorld.Instance.IsChunkLoaded(neighborId)) {
                     return;
                 }
                         
-                var neighbor = WorldManager.Instance.Chunks[neighborId.x, neighborId.y];
+                var neighbor = VoxelWorld.Instance.Chunks[neighborId.x, neighborId.y];
 
                 if (neighbor.State < ChunkState.WaitingForNeighbors || neighbor.LightPass < _lightPass) {
                     return;
@@ -480,19 +473,19 @@ namespace VektorVoxels.Chunks {
                 _neighborBuffer[i] = null;
                 var neighborId = _chunkId + _chunkNeighbors[i];
 
-                if (!WorldManager.Instance.IsChunkInView(neighborId)) {
+                if (!VoxelWorld.Instance.IsChunkInView(neighborId)) {
                     continue;
                 }
 
-                if (!WorldManager.Instance.IsChunkInBounds(neighborId)) {
+                if (!VoxelWorld.Instance.IsChunkInBounds(neighborId)) {
                     continue;
                 }
 
-                if (!WorldManager.Instance.IsChunkLoaded(neighborId)) {
+                if (!VoxelWorld.Instance.IsChunkLoaded(neighborId)) {
                     return;
                 }
 
-                var neighbor = WorldManager.Instance.Chunks[neighborId.x, neighborId.y];
+                var neighbor = VoxelWorld.Instance.Chunks[neighborId.x, neighborId.y];
                 neighbor._waitingForReload = true;
                 neighbor._isDirty = true;
             }
@@ -502,7 +495,7 @@ namespace VektorVoxels.Chunks {
         /// Updates a height-map column by iterating from the top of the chunk and stopping at the first voxel hit.
         /// </summary>
         private void UpdateHeightMapColumn(Vector2Int pos) {
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             var hi = VoxelUtility.HeightIndex(pos, d.x);
 
             for (var y = d.y - 1; y >= 0; y--) {
@@ -525,7 +518,7 @@ namespace VektorVoxels.Chunks {
         /// Rebuilds the entire heightmap for this chunk.
         /// </summary>
         public void RebuildHeightMap() {
-            var d = WorldManager.CHUNK_SIZE.x;
+            var d = VoxelWorld.CHUNK_SIZE.x;
             var hp = Vector2Int.zero;
             for (var z = 0; z < d; z++) {
                 for (var x = 0; x < d; x++) {
@@ -556,12 +549,12 @@ namespace VektorVoxels.Chunks {
                 
                 // Process voxel and height updates.
                 if (_voxelUpdates.Count > 0) {
-                    var d = WorldManager.CHUNK_SIZE;
+                    var d = VoxelWorld.CHUNK_SIZE;
 
                     // Process voxel updates and queue height updates.
                     while (_voxelUpdates.Count > 0) {
                         var update = _voxelUpdates.Dequeue();
-                        if (!VoxelUtility.InLocalGrid(update.Position, WorldManager.CHUNK_SIZE)) {
+                        if (!VoxelUtility.InLocalGrid(update.Position, VoxelWorld.CHUNK_SIZE)) {
                             Debug.Log(update.Position);
                             Debug.Log(_chunkPos);
                             continue;

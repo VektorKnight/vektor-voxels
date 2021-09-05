@@ -13,7 +13,10 @@ namespace VektorVoxels.Voxels {
         public readonly VoxelFlags Flags;
         public readonly FacingDirection Orientation;
         public readonly Color16 ColorData;
-
+        
+        /// <summary>
+        /// Whether or not the voxel is null or air.
+        /// </summary>
         public bool IsNull => Id == 0;
         
         /// <summary>
@@ -36,15 +39,18 @@ namespace VektorVoxels.Voxels {
         public bool HasFlag(VoxelFlags flag) {
             return (Flags & flag) != 0;
         }
-
+        
+        [Pure]
         public bool Equals(VoxelData other) {
             return Id == other.Id;
         }
-
+        
+        [Pure]
         public override bool Equals(object obj) {
             return obj is VoxelData other && Equals(other);
         }
-
+        
+        [Pure]
         public override int GetHashCode() {
             return (int)Id;
         }

@@ -127,7 +127,7 @@ namespace VektorVoxels.Interaction {
             }
             
             // Check for voxel intersection.
-            if (!WorldManager.Instance.TryGetChunk(transform.position, out var chunk)) {
+            if (!VoxelWorld.Instance.TryGetChunk(transform.position, out var chunk)) {
                 return;
             }
             

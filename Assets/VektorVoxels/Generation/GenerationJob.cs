@@ -30,7 +30,7 @@ namespace VektorVoxels.Generation {
             }
 
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
-                WorldManager.Instance.Generator.ProcessChunk(_chunk);
+                VoxelWorld.Instance.Generator.ProcessChunk(_chunk);
                 _chunk.ThreadLock.ExitWriteLock();
             }
             else {

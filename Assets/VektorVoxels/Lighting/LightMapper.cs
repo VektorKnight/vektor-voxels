@@ -219,7 +219,7 @@ namespace VektorVoxels.Lighting {
             var voxelData = chunk.VoxelData;
             var heightMap = chunk.HeightMap;
             var sunLight = chunk.SunLight;
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             
             _sunNodes.Clear();
             var vp = Vector3Int.zero;
@@ -308,7 +308,7 @@ namespace VektorVoxels.Lighting {
             
             _sunNodes.Clear();
             _blockNodes.Clear();
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             
             // process columns along each neighbor boundary.
             for (var i = 0; i < d.x; i++) {
@@ -345,7 +345,7 @@ namespace VektorVoxels.Lighting {
         /// </summary>
         public void InitializeBlockLightFirstPass(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             _blockNodes.Clear();
             for (var y = 0; y < d.y; y++) {
                 for (var z = 0; z < d.x; z++) {
@@ -366,7 +366,7 @@ namespace VektorVoxels.Lighting {
         public void PropagateSunLight(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
             var sunLight = chunk.SunLight;
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             PropagateLightNodes(voxelData, sunLight, d, true);
         }
         
@@ -376,7 +376,7 @@ namespace VektorVoxels.Lighting {
         public void PropagateBlockLight(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
             var blockLight = chunk.BlockLight;
-            var d = WorldManager.CHUNK_SIZE;
+            var d = VoxelWorld.CHUNK_SIZE;
             PropagateLightNodes(voxelData, blockLight, d, false);
         }
     }
