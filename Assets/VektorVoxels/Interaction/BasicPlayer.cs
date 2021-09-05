@@ -7,7 +7,7 @@ using VektorVoxels.World;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.Interaction {
-    [RequireComponent(typeof(CharacterController))]
+    /*[RequireComponent(typeof(CharacterController))]
     public class BasicPlayer : MonoBehaviour, IPlayer {
         [Header("Movement")] 
         [SerializeField] private float _moveSpeed = 5f;
@@ -36,9 +36,16 @@ namespace VektorVoxels.Interaction {
 
         private PlayerUI _playerUI;
         private VoxelDefinition _handVoxel;
-        
+        private Quaternion _rotation;
+        private Vector3 _velocity1;
+
         public Vector3 Position => transform.position;
-        public Vector3 Rotation => transform.rotation.eulerAngles;
+
+        public Quaternion Rotation => _rotation;
+
+        public Vector3 RotationEuler => transform.rotation.eulerAngles;
+
+        public Vector3 Velocity => _velocity1;
 
         public void SetHandVoxel(VoxelDefinition definition) {
             _handVoxel = definition;
@@ -113,5 +120,5 @@ namespace VektorVoxels.Interaction {
                 _selector.transform.position = Vector3.down * 1000;
             }
         }
-    }
+    }*/
 }

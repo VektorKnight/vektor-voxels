@@ -169,11 +169,19 @@ namespace VektorVoxels.Chunks {
         /// The coordinate might lie outside of this chunk's local grid.
         /// Be sure to verify the coordinate with VoxelUtility.InLocalGrid() before using it.
         /// </summary>
-        public Vector3Int WorldToLocal(Vector3 world) {
+        public Vector3Int WorldToVoxel(Vector3 world) {
             return new Vector3Int(
                 Mathf.FloorToInt(world.x - _worldPos.x),
                 Mathf.FloorToInt(world.y),
                 Mathf.FloorToInt(world.z - _worldPos.y)
+            );
+        }
+
+        public Vector3 WorldToLocal(Vector3 world) {
+            return new Vector3(
+                world.x - _worldPos.x,
+                world.y,
+                world.z - _worldPos.y
             );
         }
         
@@ -182,7 +190,7 @@ namespace VektorVoxels.Chunks {
         /// The coordinate might lie outside of this chunk's local rect.
         /// Be sure to verify the coordinate with VoxelUtility.InLocalRect() before using it.
         /// </summary>
-        public Vector2Int WorldToLocal(Vector2 world) {
+        public Vector2Int WorldToHeight(Vector2 world) {
             return new Vector2Int(
                 Mathf.FloorToInt(world.x - _worldPos.x),
                 Mathf.FloorToInt(world.y - _worldPos.y)
@@ -573,10 +581,6 @@ namespace VektorVoxels.Chunks {
             if ((_waitingForJob || _state != ChunkState.Ready) && _state != ChunkState.Inactive) return;
             
             if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
-            
-            if (Input.GetKeyDown(KeyCode.F5)) {
-                Reload(true);
-            }
 
             // Handle flags.
             if (_waitingForReload || _isDirty) {
@@ -589,6 +593,7 @@ namespace VektorVoxels.Chunks {
         }
 
         private void OnDrawGizmos() {
+            return;
             if (_state == ChunkState.Inactive) return;
             Gizmos.color = _state switch {
                 ChunkState.Uninitialized => Color.red,

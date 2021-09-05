@@ -58,16 +58,16 @@ namespace VektorVoxels.UI {
         private void Update() {
             if (!_initialized) return;
             
-            _compass.rectTransform.rotation = Quaternion.Euler(0, 0, _player.Rotation.y);
+            _compass.rectTransform.rotation = Quaternion.Euler(0, 0, _player.RotationEuler.y);
 
-            if (Input.GetKeyDown(KeyCode.LeftBracket)) {
-                CycleHotBar(-1);
-            }
-            else if (Input.GetKeyDown(KeyCode.RightBracket)) {
-                CycleHotBar(1);
-            }
+            //if (Input.GetKeyDown(KeyCode.LeftBracket)) {
+                //CycleHotBar(-1);
+            //}
+            //else if (Input.GetKeyDown(KeyCode.RightBracket)) {
+                //CycleHotBar(1);
+            //}
 
-            CycleHotBar(Mathf.RoundToInt(Input.mouseScrollDelta.y));
+            //CycleHotBar(Mathf.RoundToInt(Input.mouseScrollDelta.y));
         }
     }
 }
