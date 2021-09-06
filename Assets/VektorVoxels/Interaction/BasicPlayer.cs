@@ -1,6 +1,5 @@
 ﻿using System;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.UI;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;

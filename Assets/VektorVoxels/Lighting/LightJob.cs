@@ -2,10 +2,10 @@
 using System.Diagnostics;
 using Unity.Jobs;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Config;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
+using VektorVoxels.World.Chunks;
 using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Lighting {

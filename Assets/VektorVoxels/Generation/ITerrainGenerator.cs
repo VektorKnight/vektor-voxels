@@ -1,4 +1,4 @@
-﻿using VektorVoxels.Chunks;
+﻿using VektorVoxels.World.Chunks;
 
 namespace VektorVoxels.Generation {
     public interface ITerrainGenerator {

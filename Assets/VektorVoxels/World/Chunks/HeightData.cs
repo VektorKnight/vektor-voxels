@@ -1,4 +1,4 @@
-﻿namespace VektorVoxels.Chunks {
+﻿namespace VektorVoxels.World.Chunks {
     public struct HeightData {
         public byte Value;
         public bool Dirty;

@@ -4,10 +4,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Jobs;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Config;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
+using VektorVoxels.World.Chunks;
 
 namespace VektorVoxels.Meshing {
     public class MeshJob : VektorJob {

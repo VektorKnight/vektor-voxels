@@ -1,11 +1,11 @@
-﻿namespace VektorVoxels.Chunks {
+﻿namespace VektorVoxels.World.Chunks {
     public enum ChunkState {
-        Uninitialized,    
+        Uninitialized,
         TerrainGeneration,
         Lighting,
         WaitingForNeighbors,
         Meshing,          
-        Ready,
+        Active,
         Inactive
     }
 }

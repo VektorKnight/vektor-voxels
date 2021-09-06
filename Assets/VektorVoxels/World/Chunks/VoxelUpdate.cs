@@ -1,8 +1,7 @@
 ﻿using UnityEngine;
 using VektorVoxels.Voxels;
-using VektorVoxels.World;
 
-namespace VektorVoxels.Chunks {
+namespace VektorVoxels.World.Chunks {
     /// <summary>
     /// A voxel update to be processed by a chunk.
     /// </summary>

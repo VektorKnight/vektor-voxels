@@ -1,8 +1,8 @@
 ﻿using UnityEditor;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
+using VektorVoxels.World.Chunks;
 
 namespace VektorVoxels.VoxelPhysics {
     public static class VoxelTrace {

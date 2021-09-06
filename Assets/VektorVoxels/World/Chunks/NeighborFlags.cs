@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace VektorVoxels.Chunks {
+namespace VektorVoxels.World.Chunks {
     /// <summary>
     /// Used for determining which neighbors are within bounds for meshing/lightmapping.
     /// </summary>

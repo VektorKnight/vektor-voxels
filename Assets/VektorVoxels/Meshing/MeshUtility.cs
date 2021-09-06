@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Lighting;
 using VektorVoxels.Voxels;
+using VektorVoxels.World.Chunks;
 
 namespace VektorVoxels.Meshing {
     public static class MeshUtility {

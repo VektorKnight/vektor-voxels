@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
 using VektorVoxels.Voxels;
+using VektorVoxels.World.Chunks;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
@@ -34,7 +34,7 @@ namespace VektorVoxels.World {
         [Header("Chunk Config")] 
         [SerializeField] private Vector2Int _maxChunks = new Vector2Int(64, 64);
         [SerializeField] private bool _useSmoothLighting = true;
-        [SerializeField] private Chunk _chunkPrefab;
+        [SerializeField] private Chunk chunkPrefab;
 
         [Header("World Config")]
         [SerializeField] private WorldType _worldType = WorldType.Flat;
@@ -221,7 +221,7 @@ namespace VektorVoxels.World {
 
                     if (!IsChunkInBounds(chunkId) || IsChunkLoaded(chunkId)) continue;
 
-                    var chunk = Instantiate(_chunkPrefab, new Vector3(chunkPos.x, 0, chunkPos.y), Quaternion.identity);
+                    var chunk = Instantiate(chunkPrefab, new Vector3(chunkPos.x, 0, chunkPos.y), Quaternion.identity);
                     chunk.transform.SetParent(transform);
                     chunk.name = $"Chunk[{chunkId.x},{chunkId.y}]";
                     chunk.SetIdAndPosition(chunkId, ChunkPosFromId(chunkId));

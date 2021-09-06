@@ -1,25 +1,24 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.Profiling;
 using UnityEngine.Rendering;
-using VektorVoxels.Config;
 using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
 using VektorVoxels.Voxels;
-using VektorVoxels.World;
 using Debug = UnityEngine.Debug;
 
-namespace VektorVoxels.Chunks {
+namespace VektorVoxels.World.Chunks {
     [RequireComponent(typeof(MeshFilter))]
     [RequireComponent(typeof(MeshRenderer))]
     [RequireComponent(typeof(MeshCollider))]
     public sealed class Chunk : MonoBehaviour {
+        public const int WIDTH = 16;
+        public const int HEIGHT = 256;
+        
         [Header("Config")] 
         [SerializeField] private Material _opaqueMaterial;
         [SerializeField] private Material _alphaMaterial;
@@ -238,7 +237,7 @@ namespace VektorVoxels.Chunks {
                         return;
                     }
                     
-                    if (_partialLoad && _state == ChunkState.Ready) {
+                    if (_partialLoad && _state == ChunkState.Active) {
                         _waitingForUnload = false;
                         _waitingForReload = true;
                     }
@@ -292,7 +291,7 @@ namespace VektorVoxels.Chunks {
             }
             else {
                 _meshRenderer.forceRenderingOff = false;
-                _state = ChunkState.Ready;
+                _state = ChunkState.Active;
             }
         }
         
@@ -412,7 +411,7 @@ namespace VektorVoxels.Chunks {
             }
 
             // Clear flags.
-            _state = ChunkState.Ready;
+            _state = ChunkState.Active;
         }
         
         /// <summary>
@@ -539,7 +538,7 @@ namespace VektorVoxels.Chunks {
             }
             
             // Process chunk event queue once the chunk is ready/inactive and no threads have an active lock.
-            if (!_waitingForJob && _state == ChunkState.Ready || _state == ChunkState.Inactive) {
+            if (!_waitingForJob && _state == ChunkState.Active || _state == ChunkState.Inactive) {
                 if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
                 
                 // Process event queue.
@@ -571,7 +570,7 @@ namespace VektorVoxels.Chunks {
         }
 
         public void OnLateTick() {
-            if ((_waitingForJob || _state != ChunkState.Ready) && _state != ChunkState.Inactive) return;
+            if ((_waitingForJob || _state != ChunkState.Active) && _state != ChunkState.Inactive) return;
             
             if (_threadLock.IsReadLockHeld || _threadLock.IsWriteLockHeld) return;
 
@@ -594,7 +593,7 @@ namespace VektorVoxels.Chunks {
                 ChunkState.Lighting => Color.magenta,
                 ChunkState.WaitingForNeighbors => Color.green,
                 ChunkState.Meshing => Color.cyan,
-                ChunkState.Ready => Color.blue,
+                ChunkState.Active => Color.blue,
                 ChunkState.Inactive => Color.clear,
                 _ => throw new ArgumentOutOfRangeException()
             };

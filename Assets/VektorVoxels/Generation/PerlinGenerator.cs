@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
+using VektorVoxels.World.Chunks;
 
 namespace VektorVoxels.Generation {
     /// <summary>

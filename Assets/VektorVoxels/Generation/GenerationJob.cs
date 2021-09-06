@@ -1,10 +1,10 @@
 ﻿using System;
 using UnityEngine;
-using VektorVoxels.Chunks;
 using VektorVoxels.Config;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
 using VektorVoxels.World;
+using VektorVoxels.World.Chunks;
 
 namespace VektorVoxels.Generation {
     /// <summary>

@@ -8,11 +8,11 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.Rendering;
-using VektorVoxels.Chunks;
 using VektorVoxels.Config;
 using VektorVoxels.Lighting;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
+using VektorVoxels.World.Chunks;
 using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Meshing {
