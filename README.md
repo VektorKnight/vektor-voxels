@@ -27,7 +27,7 @@ A work-in-progress cubic voxel framework for the Unity game engine with a focus 
  - Light colors that are a combination of RGB values may fade out strangely.
  
 ## Closing Thoughts
-I've decided that this project is no longer worth maintaining as it satisfied most of the goals I initially set out to achieve. I've also determined that voxel-based games are just not viable in engines such as Unity/Unreal without significantly limiting scope and/or significant changes/workarounds within the engines themselves. If you're looking for examples on how to generate cubic voxel meshes with per-side textures, smooth lighting, and AO, this project should serve as a good example. As a bonus, the lighting system is full RGB. Most of the precision issues could be eliminated by just using regular 8-bit color instead of the 4-bit format I chose to save memory.
+I've decided that this project is no longer worth maintaining as it satisfied most of the goals I initially set out to achieve. If you're looking for examples on how to generate cubic voxel meshes with per-side textures, smooth lighting, and AO, this project should serve as a good example. As a bonus, the lighting system is full RGB. Most of the precision issues could be eliminated by just using regular 8-bit color instead of the 4-bit format I chose to save memory.
 
 ## Credits
 Textures used are from the Pixel Perfection texture pack by XSSheep.
