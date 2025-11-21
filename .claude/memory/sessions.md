@@ -18,16 +18,18 @@ Track active work for continuity across sessions.
 4. Polish for GitHub showcase
 
 **Current State:**
-Phase 1 complete. Ready for Phase 2 - 8-bit lighting upgrade.
+Phase 2 complete. Lighting upgraded from 4-bit (Color16) to 8-bit (LightColor) per channel.
+Ready for Phase 3 - PhysX collision stuttering fix.
 
 **Next Session Entry Point:**
-Begin Phase 2: Upgrade lighting from 4-bit (Color16) to 8-bit per channel.
-Key files: `LightMapper.cs`, `Color16.cs`, `Chunk.cs` (light arrays), `VisualMesher.cs`
-See `docs/initial_report.md` for detailed Phase 2 tasks.
+Begin Phase 3: Fix PhysX collision mesh generation stuttering.
+Key area: Collider mesh updates in `Chunk.cs` and `MeshJob`.
+Issue: PhysX collider generation causes frame stuttering on chunk updates.
+See `docs/initial_report.md` for details.
 
 **Phases:**
 - [x] Phase 1: Critical fixes, performance wins, code cleanup
-- [ ] Phase 2: Upgrade lighting to 8-bit per channel
+- [x] Phase 2: Upgrade lighting to 8-bit per channel
 - [ ] Phase 3: Fix PhysX collision
 - [ ] Phase 4: Polish for showcase
 

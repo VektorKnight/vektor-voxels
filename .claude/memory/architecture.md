@@ -84,19 +84,26 @@ Uninitialized → TerrainGeneration → Lighting → WaitingForNeighbors → Mes
 ### Propagation Algorithm
 
 BFS flood-fill using stacks (`_sunNodes`, `_blockNodes`):
-- Decrement light by 1 per voxel
-- Apply voxel attenuation from `ColorData`
-- Stop when all RGB channels ≤ 1
+- Decrement light by 17 per voxel (scaled for 8-bit, maintains ~15 voxel propagation distance)
+- Apply voxel attenuation from `ColorData` (scaled by 17)
+- Stop when all RGB channels ≤ 16
 - Reject backwards propagation (node light < existing light)
 
-**Light format:** `Color16` with 4 bits per channel (0-15 intensity)
+**Light format:** `LightColor` with 8 bits per channel (0-255 intensity)
 
-**Source:** `Lighting/LightMapper.cs:143-212`
+**Source:** `Lighting/LightMapper.cs:157-227`
 
 ### Sun vs Block Light
 
-- **Sunlight**: Full intensity above heightmap, propagates downward into caverns
-- **Block light**: Point sources from voxels with `LightSource` flag, emits from `ColorData`
+- **Sunlight**: Full intensity (255, 255, 255) above heightmap, propagates downward into caverns
+- **Block light**: Point sources from voxels with `LightSource` flag, emits from `ColorData` (upscaled from 4-bit)
+
+### Data Structures
+
+- `LightColor` - 32-bit packed struct (8 bits per RGBA channel)
+- `LightNode` - Position + LightColor for propagation queue
+- `LightData` - Combined sun + block light at a voxel
+- `Color16` - Still used for voxel ColorData/attenuation (4-bit per channel)
 
 ---
 
