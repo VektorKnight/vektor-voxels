@@ -609,5 +609,13 @@ namespace VektorVoxels.Chunks {
             
             Gizmos.DrawWireCube(transform.position + new Vector3(8, 0, 8), Vector3.one * 16);
         }
+
+        private void OnDestroy() {
+            // Unsubscribe from world events to prevent memory leaks.
+            VoxelWorld.OnWorldEvent -= WorldEventHandler;
+
+            // Dispose the thread lock (implements IDisposable).
+            _threadLock?.Dispose();
+        }
     }
 }

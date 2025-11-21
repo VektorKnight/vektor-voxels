@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using VektorVoxels.Threading.Jobs;
 
@@ -52,13 +53,24 @@ namespace VektorVoxels.Threading {
         public void Shutdown() {
             _workQueue.CompleteAdding();
 
-            // Wait for workers to terminate.
-            while (true) {
+            // Wait for workers to terminate with timeout.
+            var timeout = 5000; // 5 seconds
+            var elapsed = 0;
+            while (elapsed < timeout) {
+                var allOffline = true;
                 foreach (var worker in _workers) {
-                    if (worker.Status != ThreadStatus.Offline) continue;
-                    return;
+                    if (worker.Status != ThreadStatus.Offline) {
+                        allOffline = false;
+                        break;
+                    }
                 }
+                if (allOffline) return;
+
+                Thread.Sleep(10);
+                elapsed += 10;
             }
+
+            Debug.LogWarning("ThreadPool.Shutdown() timed out waiting for workers.");
         }
 
         /// <summary>
@@ -90,9 +102,9 @@ namespace VektorVoxels.Threading {
                 count++;
             }
 
-            foreach (var worker in _workers) {
+                foreach (var worker in _workers) {
                 if (worker.Status == ThreadStatus.Offline) continue;
-                worker.Abort();
+                worker.Interrupt();
             }
         }
     }

@@ -33,35 +33,38 @@ namespace VektorVoxels.Lighting {
             }
             
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
-                var lightMapper = LightMapper.LocalThreadInstance;
-                switch (_pass) {
-                    case LightPass.None:
-                        break;
-                    case LightPass.First:
-                        lightMapper.InitializeSunLightFirstPass(_chunk);
-                        lightMapper.InitializeBlockLightFirstPass(_chunk);
-                        lightMapper.PropagateSunLight(_chunk);
-                        lightMapper.PropagateBlockLight(_chunk);
-                        break;
-                    case LightPass.Second:
-                        lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
-                        lightMapper.PropagateSunLight(_chunk);
-                        lightMapper.PropagateBlockLight(_chunk);
-                        break;
-                    case LightPass.Third:
-                        lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
-                        lightMapper.PropagateSunLight(_chunk);
-                        lightMapper.PropagateBlockLight(_chunk);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
+                try {
+                    var lightMapper = LightMapper.LocalThreadInstance;
+                    switch (_pass) {
+                        case LightPass.None:
+                            break;
+                        case LightPass.First:
+                            lightMapper.InitializeSunLightFirstPass(_chunk);
+                            lightMapper.InitializeBlockLightFirstPass(_chunk);
+                            lightMapper.PropagateSunLight(_chunk);
+                            lightMapper.PropagateBlockLight(_chunk);
+                            break;
+                        case LightPass.Second:
+                            lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
+                            lightMapper.PropagateSunLight(_chunk);
+                            lightMapper.PropagateBlockLight(_chunk);
+                            break;
+                        case LightPass.Third:
+                            lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
+                            lightMapper.PropagateSunLight(_chunk);
+                            lightMapper.PropagateBlockLight(_chunk);
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
                 }
-                
-                _chunk.ThreadLock.ExitWriteLock();
+                finally {
+                    _chunk.ThreadLock.ExitWriteLock();
+                }
 
                 // Signal completion.
                 SignalCompletion(JobCompletionState.Completed);
-            
+
                 // Invoke callback on main if specified.
                 if (_callBack != null) {
                     GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Default);
