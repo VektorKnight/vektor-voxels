@@ -77,3 +77,33 @@ VektorVoxels
 - No chunk persistence/serialization
 - Some lighting edge cases with neighbor propagation
 - PhysX collider generation can cause stuttering
+
+## Additional Documentation
+
+- **`docs/initial_report.md`** - Comprehensive code audit with issues categorized by severity
+- **`.claude/memory/architecture.md`** - Deep architectural knowledge (threading, state machines, algorithms)
+- **`.claude/memory/sessions.md`** - Active work tracking for session continuity
+
+The memory file contains critical non-obvious knowledge with confidence tags. Consult it before making significant changes to threading, lighting, or chunk systems.
+
+## Memory System Maintenance
+
+When making significant changes:
+
+1. **Update `.claude/memory/architecture.md`** if you modify:
+   - Threading/job system behavior
+   - Chunk state machine transitions
+   - Lighting propagation algorithm
+   - Coordinate systems or indexing
+
+2. **Add confidence tags** to new knowledge:
+   - `[VERIFIED, HIGH]` - Directly observable in code
+   - `[INFERRED, MEDIUM]` - Derived from patterns
+   - `[ASSUMED, LOW]` - Needs verification
+
+3. **Update session state** in `.claude/memory/sessions.md` when:
+   - Starting multi-session work
+   - Making progress on ongoing tasks
+   - Completing or abandoning work streams
+
+This keeps the knowledge base accurate for future Claude instances and developers.

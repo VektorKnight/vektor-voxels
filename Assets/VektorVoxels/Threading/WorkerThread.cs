@@ -58,24 +58,26 @@ namespace VektorVoxels.Threading {
         }
         
         /// <summary>
-        /// Immediately aborts the workers thread.
+        /// Requests immediate shutdown. Unlike Shutdown(), this also interrupts any blocking waits.
+        /// The thread will exit at the next safe point (after current job completes).
         /// </summary>
-        public void Abort() {
+        public void Interrupt() {
+            _shuttingDown = true;
             _status = ThreadStatus.Offline;
-            _thread.Abort();
+            _thread.Interrupt();
         }
 
         private void WorkLoop() {
-            while (true) {
-                // Shut down if there is no more work being added.
-                if (_shuttingDown || _workQueue.IsCompleted) {
-                    // Debug.Log("Thread pool worker shutting down.");
-                    _status = ThreadStatus.Offline;
-                    return;
-                }
-                
-                // Check for work.
-                var hasWork = _workQueue.TryTake(out var job);
+            try {
+                while (true) {
+                    // Shut down if there is no more work being added.
+                    if (_shuttingDown || _workQueue.IsCompleted) {
+                        _status = ThreadStatus.Offline;
+                        return;
+                    }
+
+                    // Check for work.
+                    var hasWork = _workQueue.TryTake(out var job);
 
                 if (hasWork && job == null) {
                     Debug.LogError("Unexpected null job on pool!");
@@ -139,6 +141,11 @@ namespace VektorVoxels.Threading {
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
+                }
+            }
+            catch (ThreadInterruptedException) {
+                // Expected when Interrupt() is called - exit gracefully
+                _status = ThreadStatus.Offline;
             }
         }
     }

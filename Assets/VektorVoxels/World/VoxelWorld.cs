@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Generation;
@@ -52,6 +51,8 @@ namespace VektorVoxels.World {
         private List<Chunk> _loadedChunks;
         private List<Chunk> _chunksToLoad;
         private Queue<Chunk> _loadQueue;
+        private HashSet<Chunk> _loadQueueSet;
+        private bool _needsSort;
 
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
@@ -135,7 +136,7 @@ namespace VektorVoxels.World {
             return true;
         }
 
-        private async void Awake() {
+        private void Awake() {
             if (Instance != null) {
                 Debug.LogWarning("Duplicate world manager instance detected! \n" +
                                  "Please ensure only one instance is present per-scene.");
@@ -153,13 +154,10 @@ namespace VektorVoxels.World {
             _loadedChunks = new List<Chunk>();
             _chunksToLoad = new List<Chunk>();
             _loadQueue = new Queue<Chunk>();
-            
+            _loadQueueSet = new HashSet<Chunk>();
+
             // Configure thread pool throttled queue.
             GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
-
-            var test = new ExampleJob();
-            var result = await test.Dispatch();
-            Debug.Log(result);
         }
         
         /// <summary>
@@ -210,6 +208,7 @@ namespace VektorVoxels.World {
             var loadPrev = _loadRect;
             _loadRect = new LoadRect(loadOrigin, _viewDistance);
             if (!_loadRect.Equals(loadPrev)) {
+                _needsSort = true;
                 OnWorldEvent?.Invoke(WorldEvent.LoadRegionChanged);
             }
             
@@ -238,8 +237,9 @@ namespace VektorVoxels.World {
             // Sort the list of chunks waiting to be loaded.
             _chunksToLoad.Sort(CompareChunks);
             foreach (var chunk in _chunksToLoad) {
-                if (_loadQueue.Contains(chunk)) continue;
+                if (_loadQueueSet.Contains(chunk)) continue;
                 _loadQueue.Enqueue(chunk);
+                _loadQueueSet.Add(chunk);
             }
             
             // Initialize chunks waiting to be loaded.
@@ -250,6 +250,7 @@ namespace VektorVoxels.World {
                 }
                 
                 var chunk = _loadQueue.Dequeue();
+                _loadQueueSet.Remove(chunk);
                 chunk.Initialize();
                 _loadedChunks.Add(chunk);
                 count--;
@@ -257,8 +258,12 @@ namespace VektorVoxels.World {
         }
 
         private void Update() {
-            // Sort the loaded chunks then tick them in order.
-            _loadedChunks.Sort(CompareChunks);
+            // Sort the loaded chunks only when load region changes.
+            if (_needsSort) {
+                _loadedChunks.Sort(CompareChunks);
+                _needsSort = false;
+            }
+
             foreach (var chunk in _loadedChunks) {
                 chunk.OnTick();
             }

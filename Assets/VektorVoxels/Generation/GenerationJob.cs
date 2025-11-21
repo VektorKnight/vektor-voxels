@@ -30,15 +30,27 @@ namespace VektorVoxels.Generation {
             }
 
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
-                VoxelWorld.Instance.Generator.ProcessChunk(_chunk);
-                _chunk.ThreadLock.ExitWriteLock();
+                try {
+                    VoxelWorld.Instance.Generator.ProcessChunk(_chunk);
+                }
+                finally {
+                    _chunk.ThreadLock.ExitWriteLock();
+                }
+
+                // Signal completion.
+                SignalCompletion(JobCompletionState.Completed);
+
+                // Invoke callback on main if specified.
+                if (_callBack != null) {
+                    DispatchToMain(_callBack, QueueType.Default);
+                }
             }
             else {
                 Debug.LogError("Job aborted due to lock timeout expiration!\n" +
                                "Something is probably imploding.");
-                
+
                 SignalCompletion(JobCompletionState.Aborted);
-                
+
                 // This honestly gets us into an invalid state that cannot be recovered from
                 // so the application will just exit by default.
                 DispatchToContext(() => {
@@ -49,11 +61,6 @@ namespace VektorVoxels.Generation {
                         Application.Quit();
                     }
                 });
-            }
-
-            // Invoke callback on main if specified.
-            if (_callBack != null) {
-                DispatchToMain(_callBack, QueueType.Default);
             }
         }
     }

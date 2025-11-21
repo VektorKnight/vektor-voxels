@@ -36,11 +36,15 @@ namespace VektorVoxels.Meshing {
             
             // Acquire a read lock on the chunk and generate mesh data.
             if (_chunk.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
-                var mesher = VisualMesher.LocalThreadInstance;
-                mesher.GenerateMeshData(_chunk, _neighbors);
-                mesher.ApplyMeshData(ref _meshData);
-                _chunk.ThreadLock.ExitReadLock();
-                
+                try {
+                    var mesher = VisualMesher.LocalThreadInstance;
+                    mesher.GenerateMeshData(_chunk, _neighbors);
+                    mesher.ApplyMeshData(ref _meshData);
+                }
+                finally {
+                    _chunk.ThreadLock.ExitReadLock();
+                }
+
                 // Signal completion.
                 SignalCompletion(JobCompletionState.Completed);
 

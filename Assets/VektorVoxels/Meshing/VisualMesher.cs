@@ -89,8 +89,8 @@ namespace VektorVoxels.Meshing {
             // To clarify, anything ending in 'p' is a 3D index/position and anything ending in 'i' is a 1D index.
             // Ex: np, npi -> 'Neighbor Position', 'Neighbor Position Index'.
             var vp = Vector3Int.zero;
-            for (var y = 0; y < d.y; y++) {
-                for (var z = 0; z < d.x; z++) {
+            for (var z = 0; z < d.x; z++) {
+                for (var y = 0; y < d.y; y++) {
                     for (var x = 0; x < d.x; x++) {
                         // Grab current voxel and light data.
                         vp.x = x; vp.y = y; vp.z = z;
