@@ -8,8 +8,9 @@ using VektorVoxels.Voxels;
 namespace VektorVoxels.Meshing {
     public static class MeshUtility {
         /// <summary>
-        /// Fetches data from a neighbor depending on position and if the neighbor was provided.
-        /// WARNING: This function might give you a stroke.
+        /// Fetches voxel and light data from neighboring chunks when position falls outside chunk bounds.
+        /// Determines which of 8 neighbors contains the position based on X/Z overflow.
+        /// Returns null voxel and default light if neighbor doesn't exist.
         /// </summary>
         public static void GetNeighborData(in Vector3Int p, in Vector2Int d, in NeighborSet n, out VoxelData v, out LightData l) {
             Chunk neighbor;
@@ -91,7 +92,9 @@ namespace VektorVoxels.Meshing {
         }
         
         /// <summary>
-        /// Averages the 4 light values needed for a vertex.
+        /// Averages 4 neighbor light samples for smooth lighting on a vertex.
+        /// Decompose Color16 (4-bit channels) -> average -> scale to Color32 (multiply by 17 = 255/15).
+        /// Produces ambient occlusion effect as a side effect of corner averaging.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Color32 CalculateVertexLight(Color16 c0, Color16 c1, Color16 c2, Color16 c3) {

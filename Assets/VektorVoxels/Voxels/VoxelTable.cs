@@ -6,8 +6,9 @@ using VektorVoxels.Lighting;
 
 namespace VektorVoxels.Voxels {
     /// <summary>
-    /// Hard-coded voxel definitions cause I'm lazy.
-    /// (Maybe an automatic system would be less work overall, oh well)
+    /// Central voxel registry with O(1) lookup by ID and name.
+    /// IDs start at 1 (0 is reserved for air/null).
+    /// Add new voxel definitions to UserVoxels array.
     /// </summary>
     public static class VoxelTable {
         /// <summary>
@@ -44,7 +45,9 @@ namespace VektorVoxels.Voxels {
             return _runtimeVoxels[id - 1];
         }
 
+        // Runtime voxel array indexed by (id - 1). ID 0 is air/null.
         private static VoxelDefinition[] _runtimeVoxels;
+        // Name-to-ID cache for string lookups.
         private static Dictionary<string, uint> _nameIdMap;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]

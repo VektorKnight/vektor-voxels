@@ -16,6 +16,12 @@ using VektorVoxels.World;
 using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Chunks {
+    /// <summary>
+    /// Represents a 16x256x16 voxel chunk. Manages generation, lighting, meshing, and voxel editing.
+    /// Uses a state machine (ChunkState) and job dispatch for async processing. Thread-safe voxel
+    /// updates are queued and processed during OnTick(). All job callbacks execute on main thread.
+    /// Requires neighbors to complete lighting passes before meshing (WaitingForNeighbors gate).
+    /// </summary>
     [RequireComponent(typeof(MeshFilter))]
     [RequireComponent(typeof(MeshRenderer))]
     [RequireComponent(typeof(MeshCollider))]
@@ -49,16 +55,18 @@ namespace VektorVoxels.Chunks {
         private ConcurrentQueue<ChunkEvent> _eventQueue;
         private Queue<VoxelUpdate> _voxelUpdates;
 
-        // Mesh data.
+        // State machine and flags.
         private ChunkState _state = ChunkState.Uninitialized;
         private bool _waitingForJob;
+        // True when any needed neighbor is out of bounds/view. Edges won't blend properly.
         private bool _partialLoad;
         private bool _waitingForReload, _waitingForUnload;
+        // True if chunk needs remeshing (after voxel updates or initial generation).
         private bool _isDirty;
         
         private LightPass _lightPass;
 
-        // Job callbacks.
+        // Job callbacks. Counter increments on reload to invalidate in-flight jobs.
         private long _jobSetCounter;
         private Action _generationCallback;
         private Action _lightCallback1, _lightCallback2, _lightCallback3;

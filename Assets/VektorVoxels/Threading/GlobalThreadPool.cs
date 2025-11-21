@@ -30,6 +30,10 @@ namespace VektorVoxels.Threading {
         private ConcurrentQueue<Action> _mainQueue;
         private ConcurrentQueue<Action> _mainQueueThrottled;
 
+        /// <summary>
+        /// Automatically initializes the global thread pool before scenes load.
+        /// Ensures the pool is available for all job dispatch operations during gameplay.
+        /// </summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void InitializeSingleton() {
             if (Instance != null) {

@@ -8,17 +8,21 @@ using VektorVoxels.World;
 
 namespace VektorVoxels.Lighting {
     /// <summary>
-    /// Performs lightmapping on chunks.
+    /// Manages light propagation through voxel chunks using BFS flood-fill.
+    /// Processes sunlight (top-down) and block light (point sources) separately.
+    /// Uses 4-bit color channels (0-15 range) with per-voxel attenuation.
+    /// Thread-local instances accessed via LocalThreadInstance for job system.
     /// </summary>
     public sealed class LightMapper {
         // Static thread-local instance for the job system.
         private static readonly ThreadLocal<LightMapper> _threadLocal = new ThreadLocal<LightMapper>(() => new LightMapper());
         public static LightMapper LocalThreadInstance => _threadLocal.Value;
 
+        // Cardinal neighbors for horizontal sun propagation at chunk boundaries.
         public static readonly Vector3Int[] _sunNeighbors = {
-            Vector3Int.forward, 
-            Vector3Int.right, 
-            Vector3Int.back, 
+            Vector3Int.forward,
+            Vector3Int.right,
+            Vector3Int.back,
             Vector3Int.left
         };
         
@@ -30,6 +34,7 @@ namespace VektorVoxels.Lighting {
             _sunNodes = new Stack<LightNode>();
         }
         
+        // Acquires read locks on neighbors to prevent concurrent chunk modifications during boundary propagation.
         private void AcquireNeighborLocks(in NeighborSet neighbors) {
             if ((neighbors.Flags & NeighborFlags.North) != 0) {
                 neighbors.North.ThreadLock.EnterReadLock();
@@ -66,6 +71,8 @@ namespace VektorVoxels.Lighting {
             }
         }
         
+        // Propagates sunlight from neighbor chunk across boundary. Iterates from heightmap down,
+        // creating propagation nodes where neighbor light exceeds home light after decrement.
         private void PropagateBoundarySun(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
             // Iterate column starting at the heightmap value.
             var neighborHeight = neighbor.HeightMap[VoxelUtility.HeightIndex(np.x, np.y, d.x)];
@@ -101,6 +108,7 @@ namespace VektorVoxels.Lighting {
             }
         }
         
+        // Propagates block light from neighbor chunk. Same as sun but iterates full column top-down.
         private void PropagateBoundaryBlock(in Chunk home, in Chunk neighbor, Vector2Int hp, Vector2Int np, Vector2Int d) {
             // Iterate column starting at the top.
             for (var y = d.y - 1; y >= 0; y--) {
@@ -141,7 +149,9 @@ namespace VektorVoxels.Lighting {
         }
         
         /// <summary>
-        /// Performs light propagation on a given voxel data set and lightmap.
+        /// BFS flood-fill light propagation. Decrements intensity by 1 per voxel,
+        /// applies voxel attenuation from ColorData, and stops when all channels <= 1.
+        /// Prevents backwards propagation by rejecting nodes with inferior light values.
         /// </summary>
         private void PropagateLightNodes(in VoxelData[] voxelData, in Color16[] lightMap, Vector2Int d, bool sun) {
             var stack = sun ? _sunNodes : _blockNodes;

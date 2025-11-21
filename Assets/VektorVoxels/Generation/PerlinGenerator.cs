@@ -5,13 +5,17 @@ using VektorVoxels.World;
 
 namespace VektorVoxels.Generation {
     /// <summary>
-    /// Uses perlin noise to give some semblance of terrain.
+    /// Terrain generator using 2D Perlin noise as heightmap.
+    /// Samples continuous noise space for seamless chunk transitions.
+    /// Fills voxels in layers from top to bottom (grass -> dirt -> stone -> bedrock).
     /// </summary>
     public class PerlinGenerator : ITerrainGenerator {
         private readonly VoxelLayer[] _layers;
         private readonly int _maxHeight;
         private readonly float _noiseScale;
 
+        /// <param name="layers">Layer stack from top to bottom. Heights are cumulative.</param>
+        /// <param name="noiseScale">Noise frequency. Lower = larger features (0.01-0.1 recommended).</param>
         public PerlinGenerator(VoxelLayer[] layers, float noiseScale = 0.25f) {
             _layers = layers;
             _noiseScale = noiseScale;

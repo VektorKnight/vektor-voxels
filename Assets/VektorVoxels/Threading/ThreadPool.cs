@@ -6,7 +6,10 @@ using VektorVoxels.Threading.Jobs;
 
 namespace VektorVoxels.Threading {
 	 /// <summary>
-    /// Custom thread pool with progressive throttling.
+    /// Custom thread pool with progressive throttling for idle threads.
+    /// Workers progressively enter lower-energy states (Spinning -> Yielding -> Napping -> Sleeping)
+    /// based on cycle counts, reducing CPU usage while maintaining responsiveness to incoming work.
+    /// Uses BlockingCollection for thread-safe work distribution across worker threads.
     /// </summary>
     public sealed class ThreadPool {
         private readonly BlockingCollection<IVektorJob> _workQueue;
@@ -30,11 +33,15 @@ namespace VektorVoxels.Threading {
             }
         }
 
+        /// <summary>
+        /// Queues a job for execution by an available worker thread.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown if pool is shutting down.</exception>
         public void EnqueueWorkItem(IVektorJob vektorJob) {
             if (_workQueue.IsAddingCompleted) {
                 throw new InvalidOperationException("Cannot queue a work item if the pool is shutting down.");
             }
-            
+
             _workQueue.Add(vektorJob);
         }
         

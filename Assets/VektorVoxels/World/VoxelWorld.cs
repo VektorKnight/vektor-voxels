@@ -48,6 +48,7 @@ namespace VektorVoxels.World {
         private ITerrainGenerator _generator;
         private Chunk[,] _chunks;
         private LoadRect _loadRect;
+        // NOTE: Chunk ID = array index (0 to MaxChunks). Chunk Pos = world-centered (-MaxChunks/2 to +MaxChunks/2).
         private List<Chunk> _loadedChunks;
         private List<Chunk> _chunksToLoad;
         private Queue<Chunk> _loadQueue;
