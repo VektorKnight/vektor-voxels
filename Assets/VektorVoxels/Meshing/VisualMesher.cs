@@ -18,8 +18,11 @@ using Debug = UnityEngine.Debug;
 namespace VektorVoxels.Meshing {
     /// <summary>
     /// Performs Minecraft-style cubic meshing of a voxel grid.
+    /// Thread-local instances accessed via LocalThreadInstance for job system.
+    /// Outputs two submeshes: opaque (index 0) and alpha/translucent (index 1).
     /// </summary>
     public class VisualMesher {
+        // Texture atlas: 256x256 pixels total, 16x16 per block texture = 16 textures per row.
         public const int ATLAS_SIZE = 256;
         public const int TEXTURE_SIZE = 16;
         public const float TEX_UV_WIDTH = 1f / (ATLAS_SIZE / TEXTURE_SIZE);
@@ -39,9 +42,9 @@ namespace VektorVoxels.Meshing {
         private readonly LightData[] _lightWorkBuffer;
         private readonly int[] _triangleWorkBuffer;
 
-        // A custom vertex layout is used for voxel meshes.
-        // Sun and block light are mapped to TexCoord1 and TexCoord2 as Color32s (Unorm8x4).
-        // Vertex colors could eventually be used for biome blending or other color effects.
+        // Custom vertex layout for voxel meshes (40 bytes per vertex):
+        // Position (12), Normal (12), UV (8), SunLight as Color32 (4), BlockLight as Color32 (4).
+        // Light packed as UNorm8x4 for GPU efficiency - each RGBA channel stores a light component.
         private static readonly VertexAttributeDescriptor[] _vertexBufferParams = {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
             new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),

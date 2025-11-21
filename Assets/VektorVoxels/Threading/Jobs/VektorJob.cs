@@ -6,13 +6,18 @@ using UnityEngine;
 
 namespace VektorVoxels.Threading.Jobs {
     /// <summary>
-    /// A job for the Vektor thread pool with a generic result type.
+    /// Generic job implementation with async/await support.
+    /// Captures the synchronization context of the constructing thread to ensure continuations
+    /// execute on the correct thread (typically Unity main thread).
+    /// Implements IAwaitable for use with await in async contexts.
     /// </summary>
     public abstract class VektorJob<T> : IVektorJob, IAwaitable<T> {
         /// <summary>
-        /// Context in which the job was constructed.
+        /// Synchronization context of the thread that created this job.
+        /// Used to post completions back to the original context (usually Unity main thread).
         /// </summary>
         protected readonly SynchronizationContext _context;
+        // Continuation action invoked when job completes. Set by OnCompleted(), posted via SignalCompletion().
         private Action _continuation;
         private T _result;
 
@@ -100,6 +105,8 @@ namespace VektorVoxels.Threading.Jobs {
         
         /// <summary>
         /// Blocks the caller until all specified jobs have completed.
+        /// WARNING: Busy-wait implementation. Do not call from main thread as it will freeze the game.
+        /// Prefer async/await with continuations for non-blocking waits.
         /// </summary>
         public static void WhenAll(IEnumerable<IVektorJob> jobs) {
             var complete = false;

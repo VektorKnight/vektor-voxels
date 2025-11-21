@@ -51,7 +51,7 @@ namespace VektorVoxels.Interaction {
         public Vector3 Position => transform.position;
         public Quaternion Rotation => Quaternion.Euler(_desiredLook);
         public Vector3 RotationEuler => _desiredLook;
-        public Vector3 Velocity => _rigidBody.velocity;
+        public Vector3 Velocity => _rigidBody.linearVelocity;
         public bool Grounded => _grounded;
 
         private void Awake() {
@@ -102,8 +102,8 @@ namespace VektorVoxels.Interaction {
             // Regular forces are used when air-bourne.
             if (_grounded) {
                 if (_moveInput.magnitude > 0f) {
-                    _rigidBody.velocity = Vector3.SmoothDamp(
-                        _rigidBody.velocity,
+                    _rigidBody.linearVelocity = Vector3.SmoothDamp(
+                        _rigidBody.linearVelocity,
                         _moveInput * _moveSpeed,
                         ref _moveVelocity,
                         _stopTime,
@@ -112,8 +112,8 @@ namespace VektorVoxels.Interaction {
                     );
                 }
                 else {
-                    _rigidBody.velocity = Vector3.SmoothDamp(
-                        _rigidBody.velocity,
+                    _rigidBody.linearVelocity = Vector3.SmoothDamp(
+                        _rigidBody.linearVelocity,
                         Vector3.zero,
                         ref _moveVelocity,
                         _stopTime,

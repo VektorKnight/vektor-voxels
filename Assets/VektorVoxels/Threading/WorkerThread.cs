@@ -5,13 +5,21 @@ using UnityEngine;
 using VektorVoxels.Threading.Jobs;
 
 namespace VektorVoxels.Threading {
+    /// <summary>
+    /// Represents a single worker thread in the thread pool.
+    /// Implements progressive power management: spins when busy, yields when idle, and sleeps
+    /// based on cycle counts configured in ThreadConfig. This reduces CPU usage without sacrificing
+    /// responsiveness when work is available.
+    /// </summary>
 	public sealed class WorkerThread {
         private readonly BlockingCollection<IVektorJob> _workQueue;
         private readonly ThreadConfig _config;
         private readonly Thread _thread;
         
+        // Tracks idle cycles without work. Used to determine when to transition to lower-power states.
         private uint _cycleCounter;
         private ThreadStatus _status;
+        // Flag for graceful shutdown. Worker completes current job before checking and exiting.
         private bool _shuttingDown;
         private Exception _lastException;
         

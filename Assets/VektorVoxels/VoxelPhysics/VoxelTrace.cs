@@ -5,6 +5,11 @@ using VektorVoxels.Voxels;
 using VektorVoxels.World;
 
 namespace VektorVoxels.VoxelPhysics {
+    /// <summary>
+    /// DDA (Digital Differential Analyzer) algorithm for voxel raycasting.
+    /// More efficient than PhysX raycasts for voxel grids - walks grid directly,
+    /// visiting only intersected cells. O(max_distance) complexity.
+    /// </summary>
     public static class VoxelTrace {
         private static Vector3Int Floor(this Vector3 v) {
             return new Vector3Int(
@@ -15,8 +20,14 @@ namespace VektorVoxels.VoxelPhysics {
         }
         
         /// <summary>
-        /// Traces a ray through a given chunk.
+        /// Traces a ray through a chunk using DDA algorithm.
+        /// Returns first non-null voxel hit within distance.
         /// </summary>
+        /// <param name="ray">Ray in world space.</param>
+        /// <param name="chunk">Chunk to trace within.</param>
+        /// <param name="distance">Maximum trace distance in world units.</param>
+        /// <param name="result">Hit result with local/world position and voxel data.</param>
+        /// <returns>True if voxel hit, false if ray exits chunk without hit.</returns>
         public static bool TraceRay(Ray ray, Chunk chunk, float distance, out VoxelTraceResult result) {
             // Calculate step values.
             var l = ray.direction * distance;
@@ -24,14 +35,14 @@ namespace VektorVoxels.VoxelPhysics {
             var voxel = start.Floor();
             var chunkSize = VoxelWorld.CHUNK_SIZE;
             
-            // Direction along each axis to step (+/-).
+            // Step direction per axis: +1, 0, or -1 based on ray direction.
             var step = new Vector3Int(
                 (int)Mathf.Sign(ray.direction.x),
                 (int)Mathf.Sign(ray.direction.y),
                 (int)Mathf.Sign(ray.direction.z)
             );
             
-            // Size of the step on each axis.
+            // Reciprocal of ray direction: t-parameter increment to cross one grid cell per axis.
             var stepSize = new Vector3(
                 1f / Mathf.Abs(l.x),
                 1f / Mathf.Abs(l.y),
@@ -48,7 +59,7 @@ namespace VektorVoxels.VoxelPhysics {
                 }
             }
             
-            // How far we've traversed on each axis.
+            // Initial t-values: distance to first grid boundary on each axis.
             var delta = Vector3.zero;
             delta.x = step.x > 0
                 ? ((voxel.x + 1) - start.x) * stepSize.x
@@ -62,10 +73,9 @@ namespace VektorVoxels.VoxelPhysics {
                 ? ((voxel.z + 1) - start.z) * stepSize.z
                 : (start.z - voxel.z) * stepSize.z;
 
-            // Loop till we hit a valid voxel or reach max distance.
+            // DDA main loop: step along axis with smallest delta (closest boundary).
             var dSqr = distance * distance;
             while (true) {
-                // Step along the smallest component of delta.
                 if (delta.x < delta.y) {
                     if (delta.x < delta.z) {
                         voxel.x += step.x;
