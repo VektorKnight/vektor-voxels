@@ -179,7 +179,7 @@ namespace VektorVoxels.Meshing {
                                             _lightWorkBuffer[1].Sun, _lightWorkBuffer[2].Sun),
                                         3 => MeshUtility.CalculateVertexLight(light.Sun, _lightWorkBuffer[2].Sun,
                                             _lightWorkBuffer[3].Sun, _lightWorkBuffer[4].Sun),
-                                        _ => Color16.Clear().ToColor32()
+                                        _ => LightColor.Clear().ToColor32()
                                     };
                                     vertexLightBlock = v switch {
                                         0 => MeshUtility.CalculateVertexLight(light.Block, _lightWorkBuffer[4].Block,
@@ -190,7 +190,7 @@ namespace VektorVoxels.Meshing {
                                             _lightWorkBuffer[1].Block, _lightWorkBuffer[2].Block),
                                         3 => MeshUtility.CalculateVertexLight(light.Block, _lightWorkBuffer[2].Block,
                                             _lightWorkBuffer[3].Block, _lightWorkBuffer[4].Block),
-                                        _ => Color16.Clear().ToColor32()
+                                        _ => LightColor.Clear().ToColor32()
                                     };
                                 }
                                 else {

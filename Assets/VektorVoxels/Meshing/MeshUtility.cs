@@ -20,7 +20,7 @@ namespace VektorVoxels.Meshing {
             // Handle out of bounds Y values.
             if (p.y < 0 || p.y >= d.y) {
                 v = VoxelData.Null();
-                l = new LightData(Color16.White(), Color16.Clear());
+                l = new LightData(LightColor.White(), LightColor.Clear());
                 return;
             }
             
@@ -87,37 +87,30 @@ namespace VektorVoxels.Meshing {
             }
             else {
                 v = VoxelData.Null();
-                l = new LightData(Color16.White(), Color16.Clear());
+                l = new LightData(LightColor.White(), LightColor.Clear());
             }
         }
         
         /// <summary>
         /// Averages 4 neighbor light samples for smooth lighting on a vertex.
-        /// Decompose Color16 (4-bit channels) -> average -> scale to Color32 (multiply by 17 = 255/15).
+        /// Uses 8-bit LightColor channels - no scaling needed for Color32 conversion.
         /// Produces ambient occlusion effect as a side effect of corner averaging.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Color32 CalculateVertexLight(Color16 c0, Color16 c1, Color16 c2, Color16 c3) {
+        public static Color32 CalculateVertexLight(LightColor c0, LightColor c1, LightColor c2, LightColor c3) {
             // Decompose each color into individual channels.
-            // This is necessary since working with Color16 directly involves a lot of bitwise ops.
             c0.Decompose(out var c0r, out var c0g, out var c0b, out var c0a);
             c1.Decompose(out var c1r, out var c1g, out var c1b, out var c1a);
             c2.Decompose(out var c2r, out var c2g, out var c2b, out var c2a);
             c3.Decompose(out var c3r, out var c3g, out var c3b, out var c3a);
-            
-            // Average each channel.
+
+            // Average each channel (8-bit values, directly usable as Color32).
             var r = (c0r + c1r + c2r + c3r) >> 2;
             var g = (c0g + c1g + c2g + c3g) >> 2;
             var b = (c0b + c1b + c2b + c3b) >> 2;
             var a = (c0a + c1a + c2a + c3a) >> 2;
-            
-            // Scale to color 32 by multiplying by 17.
-            return new Color32(
-                (byte)(r * 17),
-                (byte)(g * 17),
-                (byte)(b * 17),
-                (byte)(a * 17)
-            );
+
+            return new Color32((byte)r, (byte)g, (byte)b, (byte)a);
         }
     }
 }

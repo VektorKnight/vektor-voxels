@@ -10,8 +10,9 @@ namespace VektorVoxels.Lighting {
     /// <summary>
     /// Manages light propagation through voxel chunks using BFS flood-fill.
     /// Processes sunlight (top-down) and block light (point sources) separately.
-    /// Uses 4-bit color channels (0-15 range) with per-voxel attenuation.
+    /// Uses 8-bit color channels (0-255 range) with per-voxel attenuation.
     /// Thread-local instances accessed via LocalThreadInstance for job system.
+    /// Light decrements by 17 per voxel (255/15) to maintain similar propagation distance as 4-bit.
     /// </summary>
     public sealed class LightMapper {
         // Static thread-local instance for the job system.
@@ -90,21 +91,25 @@ namespace VektorVoxels.Lighting {
                 var northLight = neighbor.SunLight[VoxelUtility.VoxelIndex(np.x, y, np.y, d)];
                     
                 northLight.Decompose(out var nlr, out var nlg, out var nlb, out _);
-                    
-                // Skip if neighbor light is <=1 on all channels.
-                if (nlr <= 1 && nlg <= 1 && nlb <= 1) {
+
+                // Skip if neighbor light is <=16 on all channels (8-bit threshold).
+                if (nlr <= 16 && nlg <= 16 && nlb <= 16) {
                     continue;
                 }
-                    
+
                 homeLight.Decompose(out var hlr, out var hlg, out var hlb, out _);
-                    
+
                 // Skip if home light is greater or equal on all channels.
                 if (hlr >= nlr && hlg >= nlg && hlb >= nlb) {
                     continue;
                 }
-                    
+
                 // Place a propagation node with the decremented neighbor values.
-                _sunNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new Color16(nlr - 1, nlg - 1, nlb - 1, 0)));
+                // Decrement by 17 to maintain similar propagation distance as 4-bit.
+                var dr = Mathf.Max(nlr - 17, 0);
+                var dg = Mathf.Max(nlg - 17, 0);
+                var db = Mathf.Max(nlb - 17, 0);
+                _sunNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new LightColor(dr, dg, db, 0)));
             }
         }
         
@@ -125,35 +130,36 @@ namespace VektorVoxels.Lighting {
                 var northLight = neighbor.BlockLight[VoxelUtility.VoxelIndex(np.x, y, np.y, d)];
                     
                 northLight.Decompose(out var nlr, out var nlg, out var nlb, out _);
-                    
-                // Skip if neighbor light is <=1 on all channels.
-                if (nlr <= 1 && nlg <= 1 && nlb <= 1) {
+
+                // Skip if neighbor light is <=16 on all channels (8-bit threshold).
+                if (nlr <= 16 && nlg <= 16 && nlb <= 16) {
                     continue;
                 }
-                    
+
                 homeLight.Decompose(out var hlr, out var hlg, out var hlb, out _);
-                    
+
                 // Skip if home light is greater or equal on all channels.
                 if (hlr >= nlr && hlg >= nlg && hlb >= nlb) {
                     continue;
                 }
-                
+
                 // Decrement and clamp neighbor light.
-                var dr = Mathf.Clamp(nlr - 1, 0, 15);
-                var dg = Mathf.Clamp(nlg - 1, 0, 15);
-                var db = Mathf.Clamp(nlb - 1, 0, 15);
-                    
+                // Decrement by 17 to maintain similar propagation distance as 4-bit.
+                var dr = Mathf.Clamp(nlr - 17, 0, 255);
+                var dg = Mathf.Clamp(nlg - 17, 0, 255);
+                var db = Mathf.Clamp(nlb - 17, 0, 255);
+
                 // Place a propagation node with the decremented neighbor values.
-                _blockNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new Color16(dr, dg, db, 0)));
+                _blockNodes.Push(new LightNode(new Vector3Int(hp.x, y, hp.y), new LightColor(dr, dg, db, 0)));
             }
         }
         
         /// <summary>
-        /// BFS flood-fill light propagation. Decrements intensity by 1 per voxel,
-        /// applies voxel attenuation from ColorData, and stops when all channels <= 1.
+        /// BFS flood-fill light propagation. Decrements intensity by 17 per voxel,
+        /// applies voxel attenuation from ColorData, and stops when all channels <= 16.
         /// Prevents backwards propagation by rejecting nodes with inferior light values.
         /// </summary>
-        private void PropagateLightNodes(in VoxelData[] voxelData, in Color16[] lightMap, Vector2Int d, bool sun) {
+        private void PropagateLightNodes(in VoxelData[] voxelData, in LightColor[] lightMap, Vector2Int d, bool sun) {
             var stack = sun ? _sunNodes : _blockNodes;
             while (stack.Count > 0) {
                 // Grab node and sample lightmap at the node position.
@@ -162,14 +168,14 @@ namespace VektorVoxels.Lighting {
                 var current = lightMap[cpi];
 
                 // Write max of the current light and node values.
-                current = Color16.Max(current, node.Value);
+                current = LightColor.Max(current, node.Value);
                 lightMap[cpi] = current;
-                
+
                 // Decompose the light here to avoid unnecessary bit ops till the packed value is needed.
                 node.Value.Decompose(out var nr, out var ng, out var nb, out _);
-                
-                // Done propagating block light if the node value is <=1 on all channels.
-                if (nr <= 1 && ng <= 1 && nb <= 1) {
+
+                // Done propagating block light if the node value is <=16 on all channels (8-bit threshold).
+                if (nr <= 16 && ng <= 16 && nb <= 16) {
                     continue;
                 }
 
@@ -192,38 +198,39 @@ namespace VektorVoxels.Lighting {
                         continue;
                     }
                     
-                    // Decrement light on propagation unless the light type is sun and we're propagating down.
-                    var dr = nr - 1;
-                    var dg = ng - 1;
-                    var db = nb - 1;
-                    
+                    // Decrement light on propagation by 17 (8-bit equivalent of 1 in 4-bit).
+                    var dr = nr - 17;
+                    var dg = ng - 17;
+                    var db = nb - 17;
+
                     // Decompose neighbor attenuation and subtract from decremented node values.
+                    // Scale 4-bit attenuation to 8-bit by multiplying by 17.
                     neighbor.ColorData.Decompose(out var nar, out var nag, out var nab, out _);
-                    var ar = Mathf.Clamp(dr - nar, 0, 15);
-                    var ag = Mathf.Clamp(dg - nag, 0, 15);
-                    var ab = Mathf.Clamp(db - nab, 0, 15);
+                    var ar = Mathf.Clamp(dr - (nar * 17), 0, 255);
+                    var ag = Mathf.Clamp(dg - (nag * 17), 0, 255);
+                    var ab = Mathf.Clamp(db - (nab * 17), 0, 255);
 
                     // Skip if attenuated light is zero.
                     if (ar + ag + ab == 0) {
                         continue;
                     }
-                    
+
                     // Skip if the existing light value is >= on all channels.
                     // Prevents propagating backwards or through the influence of a superior light source.
                     neighborLight.Decompose(out var nlr, out var nlg, out var nlb, out _);
                     if (nlr >= ar && nlg >= ag && nlb >= ab) {
                         continue;
                     }
-                    
+
                     // Push a new node to the stack.
-                    stack.Push(new LightNode(np, new Color16(ar, ag, ab, 0)));
+                    stack.Push(new LightNode(np, new LightColor(ar, ag, ab, 0)));
                 }
             }
         }
 
         /// <summary>
-        /// Scans the voxel grid and sets any light values above the heightmap to Color16.White().
-        /// propagation nodes are then placed wherever the heightmap value borders open air.
+        /// Scans the voxel grid and sets any light values above the heightmap to full intensity (255, 255, 255).
+        /// Propagation nodes are then placed wherever the heightmap value borders open air.
         /// </summary>
         public void InitializeSunLightFirstPass(in Chunk chunk) {
             var voxelData = chunk.VoxelData;
@@ -268,10 +275,10 @@ namespace VektorVoxels.Lighting {
                         // Values above the map get set to full sunlight.
                         // Values below are set to none or zero.
                         if (y > heightData.Value) {
-                            sunLight[vpi] = new Color16(15, 15, 15, 0);
+                            sunLight[vpi] = new LightColor(255, 255, 255, 0);
                         }
                         else {
-                            sunLight[vpi] = Color16.Clear();
+                            sunLight[vpi] = LightColor.Clear();
                         }
 
                         // Skip propagation on values above the region maximum or below the heightmap.
@@ -295,14 +302,14 @@ namespace VektorVoxels.Lighting {
                             // Node will be placed if the neighbor voxel is below the height value at that position and null or translucent.
                             if (np.y < neighborHeight && (neighbor.IsNull || neighbor.HasFlag(VoxelFlags.AlphaRender))) {
                                 // Place a node if any neighbor is below the heightmap and null/translucent.
-                                _sunNodes.Push(new LightNode(vp, new Color16(15, 15, 15, 0)));
+                                _sunNodes.Push(new LightNode(vp, new LightColor(255, 255, 255, 0)));
 
                                 // Done if any neighbor leads to a cavern.
                                 break;
                             }
                         }
                     }
-                    
+
                     // Clear dirty flag.
                     heightData.Dirty = false;
                 }
@@ -361,10 +368,12 @@ namespace VektorVoxels.Lighting {
                 for (var z = 0; z < d.x; z++) {
                     for (var x = 0; x < d.x; x++) {
                         var voxel = voxelData[VoxelUtility.VoxelIndex(x, y, z, d)];
-                        chunk.BlockLight[VoxelUtility.VoxelIndex(x, y, z, d)] = Color16.Clear();
+                        chunk.BlockLight[VoxelUtility.VoxelIndex(x, y, z, d)] = LightColor.Clear();
                         if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
-                
-                        _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), voxel.ColorData));
+
+                        // Convert 4-bit ColorData to 8-bit LightColor.
+                        var lightColor = LightColor.FromColor16(voxel.ColorData);
+                        _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), lightColor));
                     }
                 }
             }
