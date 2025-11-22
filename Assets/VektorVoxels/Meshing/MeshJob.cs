@@ -8,6 +8,7 @@ using VektorVoxels.Chunks;
 using VektorVoxels.Config;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
+using VektorVoxels.World;
 
 namespace VektorVoxels.Meshing {
     public class MeshJob : VektorJob {
@@ -38,7 +39,16 @@ namespace VektorVoxels.Meshing {
             if (_chunk.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
                 try {
                     var mesher = VisualMesher.LocalThreadInstance;
-                    mesher.GenerateMeshData(_chunk, _neighbors);
+
+                    // Use greedy meshing for flat lighting (better vertex reduction),
+                    // standard meshing for smooth lighting (AO requires per-vertex lighting).
+                    if (VoxelWorld.Instance.UseSmoothLighting) {
+                        mesher.GenerateMeshData(_chunk, _neighbors);
+                    }
+                    else {
+                        mesher.GenerateMeshDataGreedy(_chunk, _neighbors);
+                    }
+
                     mesher.ApplyMeshData(ref _meshData);
                 }
                 finally {

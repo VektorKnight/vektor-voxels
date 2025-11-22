@@ -1,0 +1,316 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d15f3cfdd74cee940996a80317085a21, type: 3}
+  m_Name: VoxelDatabase
+  m_EditorClassIdentifier: Assembly-CSharp::VektorVoxels.Voxels.VoxelDatabaseAsset
+  TextureAtlas: {fileID: 2800000, guid: 4de9d02fbe68d3d4d8c954a7f235763b, type: 3}
+  TileSize: 16
+  Voxels:
+  - InternalName: grass
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 0
+    SingleTexture: {x: 2, y: 0}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: dirt
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 2, y: 0}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: stone
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 5, y: 0}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: sand
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 4, y: 0}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: gravel
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 3, y: 0}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: cobble
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 0, y: 1}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: stone_brick
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 1, y: 1}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: brick
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 2, y: 1}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: mossy_cobble
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 3, y: 1}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: smooth_stone
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 4, y: 1}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: oak_planks
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 0, y: 2}
+    FaceTextures:
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 1, y: 0}
+    - {x: 0, y: 0}
+    - {x: 2, y: 0}
+  - InternalName: oak_wood
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 0
+    SingleTexture: {x: 0, y: 3}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: oak_leaves
+    Flags: 33
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 0, y: 5}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: glass
+    Flags: 1
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 0, y: 6}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: white_glowstone
+    Flags: 4
+    Orientation: 0
+    LightColor: {r: 1, g: 1, b: 1, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 0, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: red_glowstone
+    Flags: 4
+    Orientation: 0
+    LightColor: {r: 1, g: 0.48584908, b: 0.48584908, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 1, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: green_glowstone
+    Flags: 4
+    Orientation: 0
+    LightColor: {r: 0.76882356, g: 1, b: 0.48627448, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 2, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: blue_glowstone
+    Flags: 4
+    Orientation: 0
+    LightColor: {r: 0.48627448, g: 0.85444444, b: 1, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 3, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: yellow_glowstone
+    Flags: 4
+    Orientation: 0
+    LightColor: {r: 1, g: 0.8801307, b: 0.48627448, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 4, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: purple_glowstone
+    Flags: 4
+    Orientation: 0
+    LightColor: {r: 0.640392, g: 0.48627448, b: 1, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 5, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: red_glass
+    Flags: 1
+    Orientation: 0
+    LightColor: {r: 1, g: 0.6273585, b: 0.6273585, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 3, y: 6}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: bedrock
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 5, y: 1}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: spruce_log
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 0
+    SingleTexture: {x: 1, y: 3}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}

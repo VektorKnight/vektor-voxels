@@ -1,7 +1,7 @@
 # Vektor Voxels - Architectural Knowledge
 
-<!-- Last Updated: 2025-11-20 -->
-<!-- Source: Code audit and documentation pass -->
+<!-- Last Updated: 2025-11-21 -->
+<!-- Source: Code audit and documentation pass, threading improvements -->
 
 Critical knowledge for understanding and modifying the codebase.
 
@@ -32,9 +32,11 @@ Chunks use `ReaderWriterLockSlim` for concurrent access:
 - Meshing jobs acquire **read** locks
 - Jobs timeout after 10 seconds (`GlobalConstants.JOB_LOCK_TIMEOUT_MS`)
 
-**Critical issue:** Lock acquisition in `LightMapper.AcquireNeighborLocks()` uses blocking `EnterReadLock()` without timeout, creating deadlock potential when two neighboring chunks process simultaneously.
+**Thread-shared flags:** State flags (`_state`, `_waitingForJob`, `_isDirty`, etc.) are marked `volatile` to ensure memory visibility across threads.
 
-**Source:** `Chunks/Chunk.cs:68`, `Lighting/LightMapper.cs:33-47`
+**Neighbor lock acquisition:** `LightMapper.AcquireNeighborLocks()` now uses `TryEnterReadLock()` with timeout and properly releases acquired locks on failure. Returns false if locks cannot be acquired, allowing job retry.
+
+**Source:** `Chunks/Chunk.cs:58-68`, `Lighting/LightMapper.cs:38-97`
 
 ---
 
@@ -61,9 +63,18 @@ Uninitialized → TerrainGeneration → Lighting → WaitingForNeighbors → Mes
 
 `WaitingForNeighbors` prevents meshing until all neighbors complete their lighting pass. This ensures edge lighting is consistent across chunk boundaries.
 
-**Key method:** `Chunk.CheckForNeighborState()` - polls neighbor states each frame
+**Event-driven system:** Chunks now subscribe to neighbor `OnLightPassCompleted` events instead of polling every frame:
+1. On entering `WaitingForNeighbors`, chunk subscribes to all loaded neighbors
+2. When neighbor completes a light pass, it fires `OnLightPassCompleted`
+3. Waiting chunks receive notification and check if all dependencies met
+4. Fallback polling every 10 frames catches newly loaded neighbors
 
-**Source:** `Chunks/Chunk.cs:421-468`
+**Key methods:**
+- `Chunk.SubscribeToNeighborEvents()` - subscribes on state entry
+- `Chunk.OnNeighborLightPassCompleted()` - handles notifications
+- `Chunk.CheckForNeighborState()` - validates dependencies and proceeds
+
+**Source:** `Chunks/Chunk.cs:416-542`
 
 ### Job Counter Invalidation [VERIFIED, HIGH]
 
@@ -183,27 +194,32 @@ Set true when job is dispatched, false on completion. Prevents overlapping jobs 
 
 ## Known Critical Issues [VERIFIED, HIGH]
 
-### Deadlock Risks
+### Fixed Issues (2025-11-21)
+
+1. ~~**LightMapper neighbor locks** - Blocking acquisition without timeout~~ → Now uses `TryEnterReadLock()` with timeout
+2. ~~**MeshJob exception path** - Lock not released~~ → Already had proper try-finally
+3. ~~**Boolean flags without volatile**~~ → State flags now marked `volatile`
+4. ~~**Frame-by-frame neighbor polling**~~ → Now event-driven with fallback polling
+
+### Remaining Deadlock Risks
 
 1. **ThreadPool.Shutdown()** - Infinite loop with no timeout
-2. **LightMapper neighbor locks** - Blocking acquisition without timeout
-3. **MeshJob exception path** - Lock not released if `GenerateMeshData()` throws
 
 ### Memory Leaks
 
-1. **Event handler**: `VoxelWorld.OnWorldEvent += WorldEventHandler` in `Chunk.Initialize()` with no unsubscribe in `OnDestroy()`
-2. **ReaderWriterLockSlim**: Never disposed when chunks unload
+1. ~~**Event handler not unsubscribed**~~ → Now unsubscribes in `OnDestroy()`
+2. **ReaderWriterLockSlim**: Now disposed in `OnDestroy()`
 
 ### Thread Safety
 
 1. `Queue<VoxelUpdate>` is not thread-safe but accessed from multiple contexts
-2. Boolean flags modified without `volatile` or `Interlocked`
 
 ### Performance
 
 1. `Queue.Contains()` is O(n) in hot path (`VoxelWorld.cs:240`)
 2. `List.Sort()` on loaded chunks every frame
 3. Cache-unfriendly loop order in meshing
+4. **Improved:** Neighbor polling reduced from every-frame to every 10 frames (events handle most cases)
 
 **Source:** `docs/initial_report.md` for full details
 

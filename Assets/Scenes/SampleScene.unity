@@ -337,7 +337,7 @@ MonoBehaviour:
   _upperRight: {fileID: 1130675222}
   _image: {fileID: 1961275186}
   _player: {fileID: 1494866693}
-  _profilerSize: {x: 256, y: 64}
+  _profilerSize: {x: 128, y: 32}
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
@@ -397,9 +397,9 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.1
   far clip plane: 1000
-  field of view: 70
+  field of view: 90
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -843,14 +843,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f4b119522494d298acf1108a644482c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _maxChunks: {x: 256, y: 256}
+  _maxChunks: {x: 64, y: 64}
   _useSmoothLighting: 1
   _chunkPrefab: {fileID: 3355102642434385408, guid: b892d8b0ef44ad844afcb94d26bfc045, type: 3}
   _worldType: 1
   _seaLevel: 32
-  _viewDistance: 32
+  _viewDistance: 16
   _loadTransform: {fileID: 1494866693}
-  _chunksPerTick: 16
+  _chunksPerTick: 8
 --- !u!4 &1141006912
 Transform:
   m_ObjectHideFlags: 0
@@ -967,6 +967,7 @@ GameObject:
   - component: {fileID: 1494866696}
   - component: {fileID: 1494866695}
   - component: {fileID: 1494866694}
+  - component: {fileID: 1494866697}
   m_Layer: 8
   m_Name: VektorPlayer
   m_TagString: Untagged
@@ -1003,7 +1004,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _moveSpeed: 7
   _aerialControlForce: 2
-  _jumpForce: 8
+  _jumpForce: 9
   _stopTime: 0.05
   _lookSensitivity: 10
   _lookSmoothTime: 0.01
@@ -1013,6 +1014,8 @@ MonoBehaviour:
   _terrainMask:
     serializedVersion: 2
     m_Bits: 64
+  _fallGravityMultiplier: 2.5
+  _lowJumpGravityMultiplier: 2
   _maxDistance: 10
   _selectionCube: {fileID: 1431724184}
   _cameraOffset: {x: 0, y: 0.4, z: 0}
@@ -1067,6 +1070,27 @@ CapsuleCollider:
   m_Height: 1.8
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &1494866697
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1494866692}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2617ba75fb617ea40a3b8ae30b2ef020, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VektorVoxels.UI.HotbarUI
+  _player: {fileID: 1494866694}
+  _atlas: {fileID: 2800000, guid: 4de9d02fbe68d3d4d8c954a7f235763b, type: 3}
+  _slotSize: 48
+  _slotPadding: 4
+  _bottomMargin: 20
+  _slotColor: {r: 0.2, g: 0.2, b: 0.2, a: 0.8}
+  _selectedColor: {r: 0.8, g: 0.8, b: 0.8, a: 0.9}
+  _borderColor: {r: 0.1, g: 0.1, b: 0.1, a: 1}
+  _visibleSlots: 9
 --- !u!1 &1961275185
 GameObject:
   m_ObjectHideFlags: 0

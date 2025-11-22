@@ -70,8 +70,10 @@ namespace VektorVoxels.Voxels {
         /// </summary>
         public VoxelDefinition(ushort id, VoxelDefinition src) {
             Id = id;
+            InternalName = src.InternalName;
             FriendlyName = src.FriendlyName;
             Flags = src.Flags;
+            Orientation = src.Orientation;
             ColorData = src.ColorData;
             TextureRects = src.TextureRects;
         }
