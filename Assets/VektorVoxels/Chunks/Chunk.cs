@@ -56,21 +56,27 @@ namespace VektorVoxels.Chunks {
         private Queue<VoxelUpdate> _voxelUpdates;
 
         // State machine and flags.
-        private ChunkState _state = ChunkState.Uninitialized;
-        private bool _waitingForJob;
+        // These flags are accessed from multiple threads and must be volatile.
+        private volatile ChunkState _state = ChunkState.Uninitialized;
+        private volatile bool _waitingForJob;
         // True when any needed neighbor is out of bounds/view. Edges won't blend properly.
-        private bool _partialLoad;
-        private bool _waitingForReload, _waitingForUnload;
+        private volatile bool _partialLoad;
+        private volatile bool _waitingForReload, _waitingForUnload;
         // True if chunk needs remeshing (after voxel updates or initial generation).
-        private bool _isDirty;
+        private volatile bool _isDirty;
         
-        private LightPass _lightPass;
+        private volatile LightPass _lightPass;
 
         // Job callbacks. Counter increments on reload to invalidate in-flight jobs.
         private long _jobSetCounter;
         private Action _generationCallback;
         private Action _lightCallback1, _lightCallback2, _lightCallback3;
         private Action _meshCallback;
+
+        // Event-driven neighbor dependency system.
+        // Fired when this chunk completes a light pass, notifying waiting neighbors.
+        public event Action<Chunk, LightPass> OnLightPassCompleted;
+        private bool _subscribedToNeighbors;
         
         // Thread safety.
         private ReaderWriterLockSlim _threadLock;
@@ -310,6 +316,10 @@ namespace VektorVoxels.Chunks {
         private void Unload() {
             _waitingForUnload = false;
             _state = ChunkState.Inactive;
+
+            // Unsubscribe from neighbor events when unloading.
+            UnsubscribeFromNeighborEvents();
+
             //_meshRenderer.enabled = false;
             _meshRenderer.forceRenderingOff = true;
         }
@@ -397,6 +407,67 @@ namespace VektorVoxels.Chunks {
             Debug.Assert(pass > _lightPass);
             _lightPass = pass;
             _state = ChunkState.WaitingForNeighbors;
+
+            // Subscribe to neighbor notifications for event-driven waiting.
+            SubscribeToNeighborEvents();
+
+            // Notify any chunks waiting on us.
+            OnLightPassCompleted?.Invoke(this, pass);
+
+            // Check immediately in case all neighbors are already ready.
+            CheckForNeighborState();
+        }
+
+        /// <summary>
+        /// Subscribe to neighbor light pass completion events.
+        /// </summary>
+        private void SubscribeToNeighborEvents() {
+            if (_subscribedToNeighbors) return;
+
+            for (var i = 0; i < 8; i++) {
+                var neighborId = _chunkId + _chunkNeighbors[i];
+
+                if (!VoxelWorld.Instance.IsChunkInBounds(neighborId) ||
+                    !VoxelWorld.Instance.IsChunkLoaded(neighborId)) {
+                    continue;
+                }
+
+                var neighbor = VoxelWorld.Instance.Chunks[neighborId.x, neighborId.y];
+                neighbor.OnLightPassCompleted += OnNeighborLightPassCompleted;
+            }
+
+            _subscribedToNeighbors = true;
+        }
+
+        /// <summary>
+        /// Unsubscribe from neighbor light pass completion events.
+        /// </summary>
+        private void UnsubscribeFromNeighborEvents() {
+            if (!_subscribedToNeighbors) return;
+
+            for (var i = 0; i < 8; i++) {
+                var neighborId = _chunkId + _chunkNeighbors[i];
+
+                if (!VoxelWorld.Instance.IsChunkInBounds(neighborId) ||
+                    !VoxelWorld.Instance.IsChunkLoaded(neighborId)) {
+                    continue;
+                }
+
+                var neighbor = VoxelWorld.Instance.Chunks[neighborId.x, neighborId.y];
+                neighbor.OnLightPassCompleted -= OnNeighborLightPassCompleted;
+            }
+
+            _subscribedToNeighbors = false;
+        }
+
+        /// <summary>
+        /// Handler called when a neighbor chunk completes a light pass.
+        /// </summary>
+        private void OnNeighborLightPassCompleted(Chunk neighbor, LightPass pass) {
+            // Only check if we're waiting for neighbors and the neighbor's pass matches ours.
+            if (_state == ChunkState.WaitingForNeighbors && pass >= _lightPass) {
+                CheckForNeighborState();
+            }
         }
 
         public void SetLatestMeshData(Mesh.MeshDataArray data) {
@@ -456,6 +527,9 @@ namespace VektorVoxels.Chunks {
                 _neighborFlags |= (NeighborFlags)(1 << i);
             }
             
+            // Unsubscribe from neighbor events since we're proceeding.
+            UnsubscribeFromNeighborEvents();
+
             // Queue lighting or mesh passes based on state.
             switch (_lightPass) {
                 case LightPass.First:
@@ -541,8 +615,15 @@ namespace VektorVoxels.Chunks {
         /// Same purpose as Unity Update() but with finer control over timing.
         /// </summary>
         public void OnTick() {
+            // Event-driven neighbor notifications handle most cases.
+            // This polling is a fallback for edge cases (newly loaded neighbors, etc.)
+            // We only poll occasionally rather than every frame.
             if (_state == ChunkState.WaitingForNeighbors) {
-                CheckForNeighborState();
+                // Still call occasionally as a safety net - events should handle most cases.
+                // This catches newly loaded neighbors that weren't subscribed when we started waiting.
+                if (Time.frameCount % 10 == 0) {
+                    CheckForNeighborState();
+                }
                 return;
             }
             
@@ -613,6 +694,9 @@ namespace VektorVoxels.Chunks {
         private void OnDestroy() {
             // Unsubscribe from world events to prevent memory leaks.
             VoxelWorld.OnWorldEvent -= WorldEventHandler;
+
+            // Unsubscribe from neighbor events.
+            UnsubscribeFromNeighborEvents();
 
             // Dispose the thread lock (implements IDisposable).
             _threadLock?.Dispose();

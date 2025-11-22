@@ -8,23 +8,26 @@ namespace VektorVoxels.Voxels {
     /// <summary>
     /// Central voxel registry with O(1) lookup by ID and name.
     /// IDs start at 1 (0 is reserved for air/null).
-    /// Add new voxel definitions to UserVoxels array.
+    /// Can load from ScriptableObject database or fallback to hardcoded definitions.
     /// </summary>
     public static class VoxelTable {
+        // Path to default database in Resources folder
+        private const string DATABASE_RESOURCE_PATH = "VoxelDatabase";
+
         /// <summary>
         /// Gets the name of a voxel by its ID.
         /// </summary>
         public static string GetVoxelName(uint id) {
             return _runtimeVoxels[id - 1].FriendlyName.ToLower();
         }
-        
+
         /// <summary>
         /// Gets the ID of a voxel by its internal name.
         /// </summary>
         public static uint GetVoxelId(string name) {
             return _nameIdMap[name];
         }
-        
+
         /// <summary>
         /// Gets a voxel definition by its ID.
         /// </summary>
@@ -33,8 +36,8 @@ namespace VektorVoxels.Voxels {
         }
 
         public static VoxelDefinition[] Voxels => _runtimeVoxels;
-        public static int VoxelCount => _runtimeVoxels.Length;
-        
+        public static int VoxelCount => _runtimeVoxels != null ? _runtimeVoxels.Length : 0;
+
         /// <summary>
         /// Tries to find a voxel definition by internal name.
         /// Do not use this function in any tight loops.
@@ -52,18 +55,58 @@ namespace VektorVoxels.Voxels {
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
         private static void Initialize() {
+            // Try to load from ScriptableObject database first
+            var database = Resources.Load<VoxelDatabaseAsset>(DATABASE_RESOURCE_PATH);
+
+            if (database != null && database.Voxels.Count > 0) {
+                LoadFromDatabase(database);
+                Debug.Log($"[Voxel Table]: Loaded {_runtimeVoxels.Length} voxels from database asset.");
+            }
+            else {
+                // Fallback to hardcoded definitions
+                LoadFromHardcoded();
+                Debug.Log($"[Voxel Table]: Loaded {_runtimeVoxels.Length} voxels from hardcoded table.");
+            }
+        }
+
+        private static void LoadFromDatabase(VoxelDatabaseAsset database) {
+            _runtimeVoxels = database.ToRuntimeDefinitions();
+            _nameIdMap = new Dictionary<string, uint>(_runtimeVoxels.Length);
+
+            for (int i = 0; i < _runtimeVoxels.Length; i++) {
+                var name = _runtimeVoxels[i].InternalName;
+                if (string.IsNullOrEmpty(name)) {
+                    Debug.LogError($"[Voxel Table]: Voxel at index {i} has null/empty InternalName. Skipping.");
+                    continue;
+                }
+                _nameIdMap.Add(name, (uint)(i + 1));
+            }
+        }
+
+        private static void LoadFromHardcoded() {
             _runtimeVoxels = new VoxelDefinition[UserVoxels.Length];
             _nameIdMap = new Dictionary<string, uint>(UserVoxels.Length);
-            
-            // User IDs start at 1 as 0 us reserved for air/null.
+
+            // User IDs start at 1 as 0 is reserved for air/null.
             ushort id = 1;
             foreach (var userVoxel in UserVoxels) {
                 _runtimeVoxels[id - 1] = new VoxelDefinition(id, userVoxel);
                 _nameIdMap.Add(userVoxel.InternalName, id);
                 id++;
             }
-            
-            Debug.Log($"[Voxel Table]: Successfully registered {UserVoxels.Length} voxel definitions.");
+        }
+
+        /// <summary>
+        /// Manually load from a specific database. Useful for runtime switching.
+        /// </summary>
+        public static void LoadDatabase(VoxelDatabaseAsset database) {
+            if (database == null || database.Voxels.Count == 0) {
+                Debug.LogError("[Voxel Table]: Cannot load null or empty database");
+                return;
+            }
+
+            LoadFromDatabase(database);
+            Debug.Log($"[Voxel Table]: Reloaded {_runtimeVoxels.Length} voxels from database.");
         }
 
         /// <summary>
@@ -138,21 +181,21 @@ namespace VektorVoxels.Voxels {
                 "glass_red", "Red Glass", 
                 VoxelFlags.AlphaRender, 
                 FacingDirection.North,
-                new Color16(15, 0, 0, 0).ToAttenuation(), 
+                new Color16(15, 8, 4, 0).ToAttenuation(), 
                 new Vector2(3, 6)
             ),
             new VoxelDefinition(
                 "glass_green", "Green Glass", 
                 VoxelFlags.AlphaRender, 
                 FacingDirection.North,
-                new Color16(0, 15, 0, 0).ToAttenuation(), 
+                new Color16(2, 15, 1, 0).ToAttenuation(), 
                 new Vector2(6, 6)
             ),
             new VoxelDefinition(
                 "glass_blue", "Blue Glass", 
                 VoxelFlags.AlphaRender, 
                 FacingDirection.North,
-                new Color16(0, 0, 15, 0).ToAttenuation(), 
+                new Color16(1, 4, 15, 0).ToAttenuation(), 
                 new Vector2(9, 6)
             ),
             new VoxelDefinition(

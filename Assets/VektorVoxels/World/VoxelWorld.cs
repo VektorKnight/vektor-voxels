@@ -8,6 +8,7 @@ using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
 using VektorVoxels.Voxels;
+using VektorVoxels.VoxelPhysics;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
@@ -127,13 +128,89 @@ namespace VektorVoxels.World {
         public bool TryQueueVoxelUpdate(Vector3 position, VoxelData data) {
             // Fail if chunk is not available.
             if (!TryGetChunk(position, out var chunk)) return false;
-            
+
             chunk.QueueVoxelUpdate(new VoxelUpdate(
                 chunk.WorldToVoxel(position),
                 data
             ));
-            
+
             return true;
+        }
+
+        /// <summary>
+        /// Traces a ray through the world, handling chunk boundaries.
+        /// </summary>
+        /// <param name="ray">Ray in world space.</param>
+        /// <param name="distance">Maximum trace distance in world units.</param>
+        /// <param name="result">Hit result with position, voxel data, and face normal.</param>
+        /// <returns>True if a voxel was hit, false otherwise.</returns>
+        public bool TraceRay(Ray ray, float distance, out VoxelTraceResult result) {
+            var traveled = 0f;
+            var currentPos = ray.origin;
+
+            while (traveled < distance) {
+                // Get chunk at current position.
+                if (!TryGetChunk(currentPos, out var chunk)) {
+                    // No chunk here - advance to next chunk boundary.
+                    var chunkPos = WorldToChunkPos(currentPos);
+                    var nextPos = GetNextChunkBoundary(currentPos, ray.direction, chunkPos);
+                    var step = (nextPos - currentPos).magnitude + 0.01f;
+                    traveled += step;
+                    currentPos = ray.GetPoint(traveled);
+                    continue;
+                }
+
+                // Trace within this chunk.
+                var remainingDistance = distance - traveled;
+                var chunkRay = new Ray(currentPos, ray.direction);
+
+                if (VoxelTrace.TraceRay(chunkRay, chunk, remainingDistance, out result)) {
+                    return true;
+                }
+
+                // Ray exited chunk without hit - advance to next chunk.
+                // Note: WorldPosition is already in world units (chunkPos * CHUNK_SIZE.x), don't multiply again.
+                var chunkWorldPos = new Vector3(chunk.WorldPosition.x, 0, chunk.WorldPosition.y);
+                var exitPos = GetChunkExitPoint(currentPos, ray.direction, chunkWorldPos);
+                var stepDist = (exitPos - currentPos).magnitude + 0.01f;
+                traveled += stepDist;
+                currentPos = ray.GetPoint(traveled);
+            }
+
+            result = default;
+            return false;
+        }
+
+        private Vector3 GetNextChunkBoundary(Vector3 pos, Vector3 dir, Vector2Int chunkPos) {
+            var chunkMin = new Vector3(chunkPos.x * CHUNK_SIZE.x, 0, chunkPos.y * CHUNK_SIZE.x);
+            var chunkMax = chunkMin + new Vector3(CHUNK_SIZE.x, CHUNK_SIZE.y, CHUNK_SIZE.x);
+            return GetExitPoint(pos, dir, chunkMin, chunkMax);
+        }
+
+        private Vector3 GetChunkExitPoint(Vector3 pos, Vector3 dir, Vector3 chunkWorldPos) {
+            var chunkMin = chunkWorldPos;
+            var chunkMax = chunkMin + new Vector3(CHUNK_SIZE.x, CHUNK_SIZE.y, CHUNK_SIZE.x);
+            return GetExitPoint(pos, dir, chunkMin, chunkMax);
+        }
+
+        private Vector3 GetExitPoint(Vector3 pos, Vector3 dir, Vector3 min, Vector3 max) {
+            // Calculate t for each axis to reach the boundary.
+            var tMin = float.MaxValue;
+
+            if (dir.x != 0) {
+                var t = dir.x > 0 ? (max.x - pos.x) / dir.x : (min.x - pos.x) / dir.x;
+                if (t > 0 && t < tMin) tMin = t;
+            }
+            if (dir.y != 0) {
+                var t = dir.y > 0 ? (max.y - pos.y) / dir.y : (min.y - pos.y) / dir.y;
+                if (t > 0 && t < tMin) tMin = t;
+            }
+            if (dir.z != 0) {
+                var t = dir.z > 0 ? (max.z - pos.z) / dir.z : (min.z - pos.z) / dir.z;
+                if (t > 0 && t < tMin) tMin = t;
+            }
+
+            return pos + dir * tMin;
         }
 
         private void Awake() {

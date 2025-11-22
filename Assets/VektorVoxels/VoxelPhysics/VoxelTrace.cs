@@ -54,57 +54,68 @@ namespace VektorVoxels.VoxelPhysics {
                 var vi = VoxelUtility.VoxelIndex(voxel, chunkSize);
                 var voxelData = chunk.VoxelData[vi];
                 if (!voxelData.IsNull) {
-                    result = new VoxelTraceResult(voxel, chunk.LocalToWorld(voxel), voxelData);
+                    result = new VoxelTraceResult(voxel, chunk.LocalToWorld(voxel), voxelData, Vector3Int.zero);
                     return true;
                 }
             }
+
+            // Track which axis was last stepped for face normal calculation.
+            var normal = Vector3Int.zero;
             
             // Initial t-values: distance to first grid boundary on each axis.
-            var delta = Vector3.zero;
-            delta.x = step.x > 0
-                ? ((voxel.x + 1) - start.x) * stepSize.x
-                : (start.x - voxel.x) * stepSize.x;
-            
-            delta.y = step.y > 0
-                ? ((voxel.y + 1) - start.y) * stepSize.y
-                : (start.y - voxel.y) * stepSize.y;
-            
-            delta.z = step.z > 0
-                ? ((voxel.z + 1) - start.z) * stepSize.z
-                : (start.z - voxel.z) * stepSize.z;
+            // Use infinity for zero direction components to exclude them from stepping.
+            var delta = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+
+            if (step.x != 0)
+                delta.x = step.x > 0
+                    ? ((voxel.x + 1) - start.x) * stepSize.x
+                    : (start.x - voxel.x) * stepSize.x;
+
+            if (step.y != 0)
+                delta.y = step.y > 0
+                    ? ((voxel.y + 1) - start.y) * stepSize.y
+                    : (start.y - voxel.y) * stepSize.y;
+
+            if (step.z != 0)
+                delta.z = step.z > 0
+                    ? ((voxel.z + 1) - start.z) * stepSize.z
+                    : (start.z - voxel.z) * stepSize.z;
 
             // DDA main loop: step along axis with smallest delta (closest boundary).
-            var dSqr = distance * distance;
             while (true) {
                 if (delta.x < delta.y) {
                     if (delta.x < delta.z) {
                         voxel.x += step.x;
                         delta.x += stepSize.x;
+                        normal = new Vector3Int(-step.x, 0, 0);
                     }
                     else {
                         voxel.z += step.z;
                         delta.z += stepSize.z;
+                        normal = new Vector3Int(0, 0, -step.z);
                     }
                 }
                 else {
                     if (delta.y < delta.z) {
                         voxel.y += step.y;
                         delta.y += stepSize.y;
+                        normal = new Vector3Int(0, -step.y, 0);
                     }
                     else {
                         voxel.z += step.z;
                         delta.z += stepSize.z;
+                        normal = new Vector3Int(0, 0, -step.z);
                     }
                 }
 
-                // Done if delta is greater than ray length.
-                if (delta.sqrMagnitude > dSqr) {
+                // Done if t-parameter exceeds 1.0 (past ray endpoint).
+                if (Mathf.Min(delta.x, Mathf.Min(delta.y, delta.z)) > 1.0f) {
                     result = default;
                     return false;
                 }
-                
+
                 // Done if y coordinate is outside of the vertical chunk space.
-                if (voxel.y < 0 || voxel.y > chunkSize.y) {
+                if (voxel.y < 0 || voxel.y >= chunkSize.y) {
                     result = default;
                     return false;
                 }
@@ -118,7 +129,7 @@ namespace VektorVoxels.VoxelPhysics {
                 var vi = VoxelUtility.VoxelIndex(voxel, chunkSize);
                 var voxelData = chunk.VoxelData[vi];
                 if (!voxelData.IsNull) {
-                    result = new VoxelTraceResult(voxel, chunk.LocalToWorld(voxel), voxelData);
+                    result = new VoxelTraceResult(voxel, chunk.LocalToWorld(voxel), voxelData, normal);
                     return true;
                 }
             }

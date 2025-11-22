@@ -35,6 +35,7 @@ namespace VektorVoxels.Lighting {
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
                 try {
                     var lightMapper = LightMapper.LocalThreadInstance;
+                    bool success = true;
                     switch (_pass) {
                         case LightPass.None:
                             break;
@@ -45,17 +46,27 @@ namespace VektorVoxels.Lighting {
                             lightMapper.PropagateBlockLight(_chunk);
                             break;
                         case LightPass.Second:
-                            lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
-                            lightMapper.PropagateSunLight(_chunk);
-                            lightMapper.PropagateBlockLight(_chunk);
+                            success = lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
+                            if (success) {
+                                lightMapper.PropagateSunLight(_chunk);
+                                lightMapper.PropagateBlockLight(_chunk);
+                            }
                             break;
                         case LightPass.Third:
-                            lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
-                            lightMapper.PropagateSunLight(_chunk);
-                            lightMapper.PropagateBlockLight(_chunk);
+                            success = lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
+                            if (success) {
+                                lightMapper.PropagateSunLight(_chunk);
+                                lightMapper.PropagateBlockLight(_chunk);
+                            }
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();
+                    }
+
+                    if (!success) {
+                        Debug.LogWarning($"Light pass {_pass} failed to acquire neighbor locks, job will be retried");
+                        SignalCompletion(JobCompletionState.Aborted);
+                        return;
                     }
                 }
                 finally {
