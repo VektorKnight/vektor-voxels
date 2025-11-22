@@ -7,6 +7,8 @@ Shader "Voxels/Opaque" {
         _SunTint ("Sun Light Tint", Color) = (1, 1, 1, 1)
         _SunIntensity ("Sun Light Intensity", Range(0, 10)) = 1.0
         _BlockIntensity ("Block Light Intensity", Range(0, 10)) = 1.0
+        
+        _MinimumAmbient("Minimum Ambient", Color) = (0.01, 0.01, 0.01, 0.01)
 
         _TileSize ("Atlas Tile Size", Float) = 0.0625
     }
@@ -35,6 +37,8 @@ Shader "Voxels/Opaque" {
         half _SunIntensity;
         half _BlockIntensity;
         half _TileSize;
+
+        half4 _MinimumAmbient;
 
         void vert(inout appdata_full v, out Input o) {
             UNITY_INITIALIZE_OUTPUT(Input, o);
@@ -66,7 +70,9 @@ Shader "Voxels/Opaque" {
             o.Albedo = c.rgb;
 
             // Voxel lighting is mapped to the emission channel for now.
-            o.Emission = c.rgb * max(i.blockLight.rgb, i.sunLight.rgb);
+            const float3 voxelLight = max(max(i.blockLight.rgb, i.sunLight.rgb), _MinimumAmbient);
+            
+            o.Emission = c.rgb * voxelLight;
             o.Smoothness = _Glossiness;
             o.Metallic = _Metallic;
             o.Alpha = c.a;

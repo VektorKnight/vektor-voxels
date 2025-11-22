@@ -12,12 +12,13 @@ namespace VektorVoxels.Lighting {
     /// Processes sunlight (top-down) and block light (point sources) separately.
     /// Uses 8-bit color channels (0-255 range) with per-voxel attenuation.
     /// Thread-local instances accessed via LocalThreadInstance for job system.
-    /// Light decrements by 17 per voxel (255/15) to maintain similar propagation distance as 4-bit.
+    /// Uses multiplicative attenuation to preserve color saturation during propagation.
     /// </summary>
     public sealed class LightMapper {
         // Constants for light propagation.
-        // Light decrements by 17 per voxel (255/15) to maintain similar propagation distance as 4-bit.
-        private const int LIGHT_DECREMENT = 17;
+        // Multiplicative attenuation: multiply by LIGHT_MULTIPLIER/256 per step.
+        // 220/256 ≈ 0.859, giving ~15 steps from 255 to threshold (similar to old 4-bit).
+        private const int LIGHT_MULTIPLIER = 220;
         private const int LIGHT_THRESHOLD = 16;
 
         // Estimated stack capacity: chunk is 16x256x16, typical propagation hits ~10% of voxels.
@@ -167,12 +168,12 @@ namespace VektorVoxels.Lighting {
                     continue;
                 }
 
-                // Decrement neighbor light values (inline math instead of Mathf).
-                var dr = nlr > LIGHT_DECREMENT ? nlr - LIGHT_DECREMENT : 0;
-                var dg = nlg > LIGHT_DECREMENT ? nlg - LIGHT_DECREMENT : 0;
-                var db = nlb > LIGHT_DECREMENT ? nlb - LIGHT_DECREMENT : 0;
+                // Multiplicative attenuation to preserve color ratios (saturation).
+                var dr = (nlr * LIGHT_MULTIPLIER) >> 8;
+                var dg = (nlg * LIGHT_MULTIPLIER) >> 8;
+                var db = (nlb * LIGHT_MULTIPLIER) >> 8;
 
-                // Place a propagation node with the decremented neighbor values.
+                // Place a propagation node with the attenuated neighbor values.
                 nodeStack.Push(new LightNode(new Vector3Int(hpX, y, hpZ), new LightColor(dr, dg, db, 0)));
             }
         }
@@ -221,25 +222,23 @@ namespace VektorVoxels.Lighting {
                         continue;
                     }
 
-                    // Decrement light on propagation.
-                    var dr = nr - LIGHT_DECREMENT;
-                    var dg = ng - LIGHT_DECREMENT;
-                    var db = nb - LIGHT_DECREMENT;
+                    // Multiplicative attenuation to preserve color ratios (saturation).
+                    var dr = (nr * LIGHT_MULTIPLIER) >> 8;
+                    var dg = (ng * LIGHT_MULTIPLIER) >> 8;
+                    var db = (nb * LIGHT_MULTIPLIER) >> 8;
 
-                    // Decompose neighbor attenuation and subtract from decremented node values.
-                    // Scale 4-bit attenuation to 8-bit by multiplying by LIGHT_DECREMENT.
+                    // Apply voxel-specific attenuation (e.g., tinted glass).
+                    // ColorData stores 4-bit attenuation per channel; convert to multiplier.
+                    // 0 = no extra attenuation (multiply by 1), 15 = full block (multiply by 0).
                     neighbor.ColorData.Decompose(out var nar, out var nag, out var nab, out _);
-                    var attenR = nar * LIGHT_DECREMENT;
-                    var attenG = nag * LIGHT_DECREMENT;
-                    var attenB = nab * LIGHT_DECREMENT;
+                    var mulR = 255 - (nar * 17);
+                    var mulG = 255 - (nag * 17);
+                    var mulB = 255 - (nab * 17);
 
-                    // Clamp using inline math (faster than Mathf.Clamp).
-                    var ar = dr - attenR;
-                    var ag = dg - attenG;
-                    var ab = db - attenB;
-                    if (ar < 0) ar = 0; else if (ar > 255) ar = 255;
-                    if (ag < 0) ag = 0; else if (ag > 255) ag = 255;
-                    if (ab < 0) ab = 0; else if (ab > 255) ab = 255;
+                    // Apply voxel attenuation multipliers.
+                    var ar = (dr * mulR) >> 8;
+                    var ag = (dg * mulG) >> 8;
+                    var ab = (db * mulB) >> 8;
 
                     // Skip if attenuated light is zero.
                     if (ar + ag + ab == 0) {

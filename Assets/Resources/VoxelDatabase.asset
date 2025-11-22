@@ -15,6 +15,19 @@ MonoBehaviour:
   TextureAtlas: {fileID: 2800000, guid: 4de9d02fbe68d3d4d8c954a7f235763b, type: 3}
   TileSize: 16
   Voxels:
+  - InternalName: bedrock
+    Flags: 0
+    Orientation: 0
+    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 5, y: 1}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
   - InternalName: grass
     Flags: 0
     Orientation: 0
@@ -172,24 +185,11 @@ MonoBehaviour:
     - {x: 0, y: 3}
     - {x: 0, y: 3}
   - InternalName: oak_leaves
-    Flags: 33
-    Orientation: 0
-    LightColor: {r: 0, g: 0, b: 0, a: 0}
-    UseSingleTexture: 1
-    SingleTexture: {x: 0, y: 5}
-    FaceTextures:
-    - {x: 0, y: 4}
-    - {x: 0, y: 4}
-    - {x: 0, y: 4}
-    - {x: 0, y: 4}
-    - {x: 0, y: 3}
-    - {x: 0, y: 3}
-  - InternalName: glass
     Flags: 1
     Orientation: 0
-    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    LightColor: {r: 0.6650944, g: 1, b: 0.8977912, a: 0}
     UseSingleTexture: 1
-    SingleTexture: {x: 0, y: 6}
+    SingleTexture: {x: 0, y: 5}
     FaceTextures:
     - {x: 0, y: 4}
     - {x: 0, y: 4}
@@ -213,7 +213,7 @@ MonoBehaviour:
   - InternalName: red_glowstone
     Flags: 4
     Orientation: 0
-    LightColor: {r: 1, g: 0.48584908, b: 0.48584908, a: 0}
+    LightColor: {r: 1, g: 0.27999997, b: 0.27999997, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 1, y: 7}
     FaceTextures:
@@ -226,7 +226,7 @@ MonoBehaviour:
   - InternalName: green_glowstone
     Flags: 4
     Orientation: 0
-    LightColor: {r: 0.76882356, g: 1, b: 0.48627448, a: 0}
+    LightColor: {r: 0.5626629, g: 1, b: 0.19999999, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 2, y: 7}
     FaceTextures:
@@ -239,7 +239,7 @@ MonoBehaviour:
   - InternalName: blue_glowstone
     Flags: 4
     Orientation: 0
-    LightColor: {r: 0.48627448, g: 0.85444444, b: 1, a: 0}
+    LightColor: {r: 0.19999999, g: 0.77404594, b: 1, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 3, y: 7}
     FaceTextures:
@@ -252,7 +252,7 @@ MonoBehaviour:
   - InternalName: yellow_glowstone
     Flags: 4
     Orientation: 0
-    LightColor: {r: 1, g: 0.8801307, b: 0.48627448, a: 0}
+    LightColor: {r: 1, g: 0.63771397, b: 0.19999999, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 4, y: 7}
     FaceTextures:
@@ -265,9 +265,35 @@ MonoBehaviour:
   - InternalName: purple_glowstone
     Flags: 4
     Orientation: 0
-    LightColor: {r: 0.640392, g: 0.48627448, b: 1, a: 0}
+    LightColor: {r: 0.49435115, g: 0.27999997, b: 1, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 5, y: 7}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: glass
+    Flags: 1
+    Orientation: 0
+    LightColor: {r: 0.63, g: 0.63, b: 0.63, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 0, y: 6}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: white_glass
+    Flags: 1
+    Orientation: 0
+    LightColor: {r: 0.8, g: 0.8, b: 0.8, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 2, y: 6}
     FaceTextures:
     - {x: 0, y: 4}
     - {x: 0, y: 4}
@@ -278,7 +304,7 @@ MonoBehaviour:
   - InternalName: red_glass
     Flags: 1
     Orientation: 0
-    LightColor: {r: 1, g: 0.6273585, b: 0.6273585, a: 0}
+    LightColor: {r: 1, g: 0.37, b: 0.37, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 3, y: 6}
     FaceTextures:
@@ -288,12 +314,12 @@ MonoBehaviour:
     - {x: 0, y: 4}
     - {x: 0, y: 3}
     - {x: 0, y: 3}
-  - InternalName: bedrock
-    Flags: 0
+  - InternalName: green_glass
+    Flags: 1
     Orientation: 0
-    LightColor: {r: 0, g: 0, b: 0, a: 0}
+    LightColor: {r: 0.5113842, g: 1, b: 0.37, a: 0}
     UseSingleTexture: 1
-    SingleTexture: {x: 5, y: 1}
+    SingleTexture: {x: 6, y: 6}
     FaceTextures:
     - {x: 0, y: 4}
     - {x: 0, y: 4}
@@ -301,12 +327,25 @@ MonoBehaviour:
     - {x: 0, y: 4}
     - {x: 0, y: 3}
     - {x: 0, y: 3}
-  - InternalName: spruce_log
-    Flags: 0
+  - InternalName: blue_glass
+    Flags: 1
     Orientation: 0
-    LightColor: {r: 0, g: 0, b: 0, a: 0}
-    UseSingleTexture: 0
-    SingleTexture: {x: 1, y: 3}
+    LightColor: {r: 0.36862743, g: 0.4971384, b: 1, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 9, y: 6}
+    FaceTextures:
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 4}
+    - {x: 0, y: 3}
+    - {x: 0, y: 3}
+  - InternalName: black_glass
+    Flags: 1
+    Orientation: 0
+    LightColor: {r: 0.32, g: 0.32, b: 0.32, a: 0}
+    UseSingleTexture: 1
+    SingleTexture: {x: 1, y: 6}
     FaceTextures:
     - {x: 0, y: 4}
     - {x: 0, y: 4}
