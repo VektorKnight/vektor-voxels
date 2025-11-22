@@ -2,6 +2,11 @@
 using UnityEngine.Rendering;
 
 namespace VektorVoxels.Meshing {
+    /// <summary>
+    /// Static lookup tables for voxel mesh generation. Contains face vertices, triangle indices,
+    /// normals, and light sampling offsets. Face order is N/E/S/W/Up/Down (Z+/X+/Z-/X-/Y+/Y-).
+    /// LightNeighbors defines the 8 sampling positions for smooth lighting per face.
+    /// </summary>
     public static class MeshTables {
         // Face vertices (North is Z+).
         // Clockwise always starting from the bottom left.

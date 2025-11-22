@@ -7,6 +7,12 @@ using VektorVoxels.Voxels;
 using VektorVoxels.World;
 
 namespace VektorVoxels.Interaction {
+    /// <summary>
+    /// First-person player controller with custom voxel physics. Handles input for movement, jumping,
+    /// camera look, and voxel place/break interactions. Uses VoxelBody for collision resolution.
+    /// Movement uses acceleration/deceleration for ground control and force-based air control.
+    /// Supports variable-height jumping via gravity multipliers.
+    /// </summary>
     [RequireComponent(typeof(VoxelBody))]
     public class VektorPlayer : MonoBehaviour, IPlayer {
         [Header("Movement")]

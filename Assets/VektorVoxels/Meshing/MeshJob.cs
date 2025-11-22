@@ -11,6 +11,12 @@ using VektorVoxels.Threading.Jobs;
 using VektorVoxels.World;
 
 namespace VektorVoxels.Meshing {
+    /// <summary>
+    /// Worker job for chunk mesh generation. Uses greedy meshing for flat lighting
+    /// (better vertex reduction) or standard meshing for smooth lighting (AO requires
+    /// per-vertex data). Outputs to a MeshDataArray for efficient GPU upload.
+    /// Aborts if chunk job counter has been invalidated.
+    /// </summary>
     public class MeshJob : VektorJob {
         private readonly long _id;
         private readonly Chunk _chunk;

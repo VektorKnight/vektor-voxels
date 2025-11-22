@@ -5,6 +5,11 @@ using VektorVoxels.Config;
 using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Chunks {
+    /// <summary>
+    /// Immutable collection of a chunk's neighbors. Contains 4 cardinal (N/E/S/W) and
+    /// 4 diagonal (NE/SE/SW/NW) references. Flags indicate which neighbors are valid.
+    /// Used by lighting and meshing jobs to read border voxel data from adjacent chunks.
+    /// </summary>
     public readonly struct NeighborSet {
         public readonly Chunk North;
         public readonly Chunk East;

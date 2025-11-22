@@ -9,6 +9,12 @@ using VektorVoxels.Threading.Jobs;
 using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Lighting {
+    /// <summary>
+    /// Worker job for chunk light propagation. Executes one of three passes:
+    /// First pass initializes sun/block light and propagates within the chunk.
+    /// Second/Third passes pull light from neighbors that have completed their passes.
+    /// Aborts if chunk job counter has been invalidated (chunk unloaded/reloaded).
+    /// </summary>
     public class LightJob : VektorJob {
         private readonly long _id;
         private readonly Chunk _chunk;

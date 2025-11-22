@@ -39,3 +39,5 @@ sysinfo.txt
 # Builds
 *.apk
 *.unitypackage
+UserSettings/Layouts/default-6000.dwlt
+/UserSettings

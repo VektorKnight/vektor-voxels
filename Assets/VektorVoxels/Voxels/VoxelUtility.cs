@@ -31,21 +31,33 @@ namespace VektorVoxels.Voxels {
                    y >= 0 && y < d;
         }
         
+        /// <summary>
+        /// Converts 3D voxel coordinates to a flat array index. Layout is X + Width * (Y + Height * Z).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int VoxelIndex(Vector3Int p, Vector2Int d) {
             return p.x + d.x * (p.y + d.y * p.z);
         }
-        
+
+        /// <summary>
+        /// Converts 3D voxel coordinates to a flat array index. Layout is X + Width * (Y + Height * Z).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int VoxelIndex(int x, int y, int z, Vector2Int d) {
             return x + d.x * (y + d.y * z);
         }
-        
+
+        /// <summary>
+        /// Converts 2D height-map coordinates to a flat array index. Layout is X + Z * Width.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int HeightIndex(int x, int z, int sx) {
             return x + z * sx;
         }
-        
+
+        /// <summary>
+        /// Converts 2D height-map coordinates to a flat array index. Layout is X + Z * Width.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int HeightIndex(Vector2Int p, int sx) {
             return p.x + p.y * sx;

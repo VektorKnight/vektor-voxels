@@ -33,6 +33,11 @@ See `docs/initial_report.md` for details.
 - [ ] Phase 3: Fix PhysX collision
 - [ ] Phase 4: Polish for showcase
 
+**Documentation Audit (2025-11-22):**
+Added XML docs to: VektorPlayer, LightJob, NeighborSet, MeshJob, MeshTables, VoxelUtility, FacingDirection.
+Core files (Chunk, VoxelWorld, LightMapper, VoxelBody, VoxelCollider, VoxelTrace) already well-documented.
+Enums (ChunkState, LightPass, VoxelFlags, ChunkEvent, NeighborFlags) already documented.
+
 **Artifacts:**
 - `docs/phase1_summary.md` - Learning summary (after completion)
 - `docs/phase2_summary.md` - Learning summary (after completion)
