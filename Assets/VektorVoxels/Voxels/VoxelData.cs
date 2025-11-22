@@ -18,12 +18,13 @@ namespace VektorVoxels.Voxels {
         /// Whether or not the voxel is null or air.
         /// </summary>
         public bool IsNull => Id == 0;
-        
+
         /// <summary>
         /// A null voxel or "air" in some games.
         /// Not considered for meshing, collision, or anything else really.
         /// </summary>
-        public static VoxelData Null() => new VoxelData(0, 0, 0, Color16.Clear());
+        private static readonly VoxelData NULL_VOXEL = new VoxelData(0, VoxelFlags.NoCollision, 0, Color16.Clear());
+        public static VoxelData Null() => NULL_VOXEL;
 
         public VoxelData(ushort id, VoxelFlags flags, FacingDirection orientation, Color16 colorData) {
             Id = id;

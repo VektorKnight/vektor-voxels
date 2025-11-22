@@ -24,7 +24,6 @@ namespace VektorVoxels.Chunks {
     /// </summary>
     [RequireComponent(typeof(MeshFilter))]
     [RequireComponent(typeof(MeshRenderer))]
-    [RequireComponent(typeof(MeshCollider))]
     public sealed class Chunk : MonoBehaviour {
         [Header("Config")] 
         [SerializeField] private Material _opaqueMaterial;
@@ -33,7 +32,6 @@ namespace VektorVoxels.Chunks {
         // Required components.
         private MeshFilter _meshFilter;
         private MeshRenderer _meshRenderer;
-        private MeshCollider _meshCollider;
         
         // Lightmapper and mesher instances.
         private Mesh _mesh;
@@ -132,24 +130,21 @@ namespace VektorVoxels.Chunks {
             // Reference required components.
             _meshFilter = GetComponent<MeshFilter>();
             _meshRenderer = GetComponent<MeshRenderer>();
-            _meshCollider = GetComponent<MeshCollider>();
 
             _meshRenderer.sharedMaterials = new[] {
                 _opaqueMaterial,
                 _alphaMaterial
             };
-            
+
             _meshRenderer.forceRenderingOff = true;
-            _meshCollider.convex = false;
-            
+
             _mesh = new Mesh() {
                 name = $"ChunkMesh-{GetInstanceID()}",
                 indexFormat = IndexFormat.UInt32
             };
-            
+
             _neighborBuffer = new Chunk[8];
             _meshFilter.mesh = _mesh;
-            _meshCollider.sharedMesh = _mesh;
             
             // World data.
             var dimensions = VoxelWorld.CHUNK_SIZE;
@@ -158,6 +153,11 @@ namespace VektorVoxels.Chunks {
             _sunLight = new LightColor[dataSize];
             _blockLight = new LightColor[dataSize];
             _heightMap = new HeightData[dimensions.x * dimensions.x];
+            
+            // Set every voxel to air initially.
+            for (var i = 0; i < _voxelData.Length; i++) {
+                _voxelData[i] = Voxels.VoxelData.Null();
+            }
             
             // Job completion callbacks.
             _generationCallback = OnGenerationPassComplete;
@@ -486,7 +486,6 @@ namespace VektorVoxels.Chunks {
             _meshRenderer.forceRenderingOff = false;
 
             if (_isDirty) {
-                _meshCollider.sharedMesh = _mesh;
                 _isDirty = false;
             }
 

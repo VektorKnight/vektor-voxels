@@ -54,7 +54,38 @@ namespace VektorVoxels.VoxelPhysics {
                 var vi = VoxelUtility.VoxelIndex(voxel, chunkSize);
                 var voxelData = chunk.VoxelData[vi];
                 if (!voxelData.IsNull) {
-                    result = new VoxelTraceResult(voxel, chunk.LocalToWorld(voxel), voxelData, Vector3Int.zero);
+                    // Calculate entry normal based on which face we entered through.
+                    // Find the closest face considering ray direction.
+                    var localPos = start - new Vector3(voxel.x, voxel.y, voxel.z);
+                    var entryNormal = Vector3Int.zero;
+                    var minDist = float.MaxValue;
+
+                    // Check each axis - only consider faces we could have entered through
+                    if (ray.direction.x > 0 && localPos.x < minDist) {
+                        minDist = localPos.x;
+                        entryNormal = new Vector3Int(-1, 0, 0);
+                    }
+                    if (ray.direction.x < 0 && (1 - localPos.x) < minDist) {
+                        minDist = 1 - localPos.x;
+                        entryNormal = new Vector3Int(1, 0, 0);
+                    }
+                    if (ray.direction.y > 0 && localPos.y < minDist) {
+                        minDist = localPos.y;
+                        entryNormal = new Vector3Int(0, -1, 0);
+                    }
+                    if (ray.direction.y < 0 && (1 - localPos.y) < minDist) {
+                        minDist = 1 - localPos.y;
+                        entryNormal = new Vector3Int(0, 1, 0);
+                    }
+                    if (ray.direction.z > 0 && localPos.z < minDist) {
+                        minDist = localPos.z;
+                        entryNormal = new Vector3Int(0, 0, -1);
+                    }
+                    if (ray.direction.z < 0 && (1 - localPos.z) < minDist) {
+                        entryNormal = new Vector3Int(0, 0, 1);
+                    }
+
+                    result = new VoxelTraceResult(voxel, chunk.LocalToWorld(voxel), voxelData, entryNormal);
                     return true;
                 }
             }
@@ -82,30 +113,22 @@ namespace VektorVoxels.VoxelPhysics {
                     : (start.z - voxel.z) * stepSize.z;
 
             // DDA main loop: step along axis with smallest delta (closest boundary).
+            // Use <= for consistent tie-breaking priority: X > Y > Z
             while (true) {
-                if (delta.x < delta.y) {
-                    if (delta.x < delta.z) {
-                        voxel.x += step.x;
-                        delta.x += stepSize.x;
-                        normal = new Vector3Int(-step.x, 0, 0);
-                    }
-                    else {
-                        voxel.z += step.z;
-                        delta.z += stepSize.z;
-                        normal = new Vector3Int(0, 0, -step.z);
-                    }
+                if (delta.x <= delta.y && delta.x <= delta.z) {
+                    voxel.x += step.x;
+                    delta.x += stepSize.x;
+                    normal = new Vector3Int(-step.x, 0, 0);
+                }
+                else if (delta.y <= delta.z) {
+                    voxel.y += step.y;
+                    delta.y += stepSize.y;
+                    normal = new Vector3Int(0, -step.y, 0);
                 }
                 else {
-                    if (delta.y < delta.z) {
-                        voxel.y += step.y;
-                        delta.y += stepSize.y;
-                        normal = new Vector3Int(0, -step.y, 0);
-                    }
-                    else {
-                        voxel.z += step.z;
-                        delta.z += stepSize.z;
-                        normal = new Vector3Int(0, 0, -step.z);
-                    }
+                    voxel.z += step.z;
+                    delta.z += stepSize.z;
+                    normal = new Vector3Int(0, 0, -step.z);
                 }
 
                 // Done if t-parameter exceeds 1.0 (past ray endpoint).

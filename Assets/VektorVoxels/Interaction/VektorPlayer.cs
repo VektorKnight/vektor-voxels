@@ -1,33 +1,24 @@
-﻿using System;
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Networking;
-using VektorVoxels.Chunks;
 using VektorVoxels.Input;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
-using Random = System.Random;
 
 namespace VektorVoxels.Interaction {
-    [RequireComponent(typeof(CapsuleCollider))]
-    [RequireComponent(typeof(Rigidbody))]
+    [RequireComponent(typeof(VoxelBody))]
     public class VektorPlayer : MonoBehaviour, IPlayer {
         [Header("Movement")]
         [SerializeField] private float _moveSpeed = 5.0f;
-        [SerializeField] private float _aerialControlForce = 5f;
-        [SerializeField] private float _jumpForce = 60f;
-        [SerializeField] private float _stopTime = 0.1f;
+        [SerializeField] private float _aerialControlForce = 25f;
+        [SerializeField] private float _jumpVelocity = 8f;
+        [SerializeField] private float _acceleration = 50f;
+        [SerializeField] private float _deceleration = 40f;
 
         [Header("Aiming")]
         [SerializeField] private float _lookSensitivity = 10.0f;
         [SerializeField] private float _lookSmoothTime = 0.02f;
-
-        [Header("Terrain Interaction")]
-        [SerializeField] private Vector3 _terrainCheckOrigin = new Vector3(0f, -0.5f, 0f);
-        [SerializeField] private float _terrainCheckRadius = 0.25f;
-        [SerializeField] private float _terrainCheckDistance = 0.1f;
-        [SerializeField] private LayerMask _terrainMask;
 
         [Header("Physics Feel")]
         [SerializeField] private float _fallGravityMultiplier = 2.5f;
@@ -35,48 +26,56 @@ namespace VektorVoxels.Interaction {
 
         [Header("Voxel Interaction")]
         [SerializeField] private float _maxDistance = 10f;
-        [SerializeField] private Transform _selectionCube;
+        [SerializeField] private SelectionIndicator _selectionCube;
 
         // Hotbar state
         private int _selectedSlot;
         private VoxelDefinition _selectedVoxel;
 
+        // Looking-at state
+        private VoxelDefinition _lookingAtVoxel;
+
         public int SelectedSlot => _selectedSlot;
         public VoxelDefinition SelectedVoxel => _selectedVoxel;
+        public VoxelDefinition LookingAtVoxel => _lookingAtVoxel;
 
         [Header("Camera")]
         [SerializeField] private Vector3 _cameraOffset = new Vector3(0f, 0.4f, 0f);
         [SerializeField] private Camera _camera;
 
         private PlayerControls _playerControls;
-        private Rigidbody _rigidBody;
+        private VoxelBody _voxelBody;
 
         private Vector3 _moveInput;
         private Vector2 _lookInput;
-        private Vector3 _moveVelocity;
 
         private Vector2 _lookVelocity;
         private Vector2 _lookSmooth;
         private Vector3 _desiredLook;
 
-        private Vector3 _groundNormal;
-        private bool _grounded;
-
         private bool _wantsBreak;
         private bool _wantsPlace;
-        
+        private bool _jumpHeld;
+
+        // Crosshair
+        [Header("Crosshair")]
+        [SerializeField] private int _crosshairSize = 12;
+        [SerializeField] private int _crosshairThickness = 2;
+        [SerializeField] private Color _crosshairColor = Color.white;
+        private Texture2D _crosshairTexture;
+
         public Vector3 Position => transform.position;
         public Quaternion Rotation => Quaternion.Euler(_desiredLook);
         public Vector3 RotationEuler => _desiredLook;
-        public Vector3 Velocity => _rigidBody.linearVelocity;
-        public bool Grounded => _grounded;
+        public Vector3 Velocity => _voxelBody.Velocity;
+        public bool Grounded => _voxelBody.Grounded;
 
         private void Awake() {
             _playerControls = new PlayerControls();
             _playerControls.Enable();
             _playerControls.Gameplay.Jump.performed += OnJumpInput;
 
-            _rigidBody = GetComponent<Rigidbody>();
+            _voxelBody = GetComponent<VoxelBody>();
 
             Cursor.lockState = CursorLockMode.Locked;
 
@@ -86,6 +85,43 @@ namespace VektorVoxels.Interaction {
             // Initialize hotbar with first voxel
             _selectedSlot = 0;
             UpdateSelectedVoxel();
+
+            // Create crosshair texture
+            _crosshairTexture = new Texture2D(1, 1);
+            _crosshairTexture.SetPixel(0, 0, Color.white);
+            _crosshairTexture.Apply();
+        }
+
+        private void OnDestroy() {
+            if (_crosshairTexture != null) {
+                Destroy(_crosshairTexture);
+            }
+        }
+
+        private void OnGUI() {
+            if (_crosshairTexture == null) return;
+
+            GUI.color = _crosshairColor;
+            var centerX = Screen.width / 2f;
+            var centerY = Screen.height / 2f;
+
+            // Horizontal line
+            GUI.DrawTexture(new Rect(
+                centerX - _crosshairSize / 2f,
+                centerY - _crosshairThickness / 2f,
+                _crosshairSize,
+                _crosshairThickness
+            ), _crosshairTexture);
+
+            // Vertical line
+            GUI.DrawTexture(new Rect(
+                centerX - _crosshairThickness / 2f,
+                centerY - _crosshairSize / 2f,
+                _crosshairThickness,
+                _crosshairSize
+            ), _crosshairTexture);
+
+            GUI.color = Color.white;
         }
 
         private void UpdateSelectedVoxel() {
@@ -101,7 +137,7 @@ namespace VektorVoxels.Interaction {
         private void OnBreak(InputAction.CallbackContext ctx) {
             _wantsBreak = true;
         }
-        
+
         private void OnPlace(InputAction.CallbackContext ctx) {
             _wantsPlace = true;
         }
@@ -126,6 +162,9 @@ namespace VektorVoxels.Interaction {
 
             // Update camera position and apply look rotation.
             _camera.transform.SetPositionAndRotation(transform.position + _cameraOffset, Quaternion.Euler(_desiredLook.x, _desiredLook.y, 0f));
+
+            // Track jump held state for variable jump height
+            _jumpHeld = _playerControls.Gameplay.Jump.IsPressed();
 
             // Handle scroll wheel for hotbar selection
             var scroll = Mouse.current.scroll.ReadValue().y;
@@ -152,61 +191,53 @@ namespace VektorVoxels.Interaction {
         }
 
         private void FixedUpdate() {
-            // Check for grounded state.
-            if (Physics.SphereCast(transform.position + _terrainCheckOrigin, _terrainCheckRadius, Vector3.down, out var hit, _terrainCheckDistance, _terrainMask)) {
-                _groundNormal = hit.normal;
-                _grounded = true;
-            }
-            else {
-                _groundNormal = Vector3.up;
-                _grounded = false;
-            }
+            var velocity = _voxelBody.Velocity;
+            var dt = Time.fixedDeltaTime;
 
             // Apply extra gravity when falling or releasing jump early for snappier feel.
-            if (!_grounded) {
-                var velocity = _rigidBody.linearVelocity;
+            if (!_voxelBody.Grounded) {
                 if (velocity.y < 0) {
                     // Falling - apply extra gravity for faster descent
-                    _rigidBody.AddForce(Vector3.up * Physics.gravity.y * (_fallGravityMultiplier - 1), ForceMode.Acceleration);
+                    _voxelBody.AddForce(Vector3.up * Physics.gravity.y * (_fallGravityMultiplier - 1));
                 }
-                else if (velocity.y > 0 && !_playerControls.Gameplay.Jump.IsPressed()) {
+                else if (velocity.y > 0 && !_jumpHeld) {
                     // Rising but jump released - cut jump short for variable jump height
-                    _rigidBody.AddForce(Vector3.up * Physics.gravity.y * (_lowJumpGravityMultiplier - 1), ForceMode.Acceleration);
+                    _voxelBody.AddForce(Vector3.up * Physics.gravity.y * (_lowJumpGravityMultiplier - 1));
                 }
             }
 
-            // Ground movement with snappier response.
-            if (_grounded) {
-                if (_moveInput.magnitude > 0f) {
-                    _rigidBody.linearVelocity = Vector3.SmoothDamp(
-                        _rigidBody.linearVelocity,
-                        _moveInput * _moveSpeed,
-                        ref _moveVelocity,
-                        _stopTime,
-                        float.MaxValue,
-                        Time.fixedDeltaTime
-                    );
+            // Ground movement
+            if (_voxelBody.Grounded) {
+                var targetVelocity = _moveInput * _moveSpeed;
+                var currentHorizontal = new Vector3(velocity.x, 0, velocity.z);
+                var targetHorizontal = new Vector3(targetVelocity.x, 0, targetVelocity.z);
+
+                Vector3 newHorizontal;
+                if (_moveInput.magnitude > 0.1f) {
+                    // Accelerate toward target
+                    newHorizontal = Vector3.MoveTowards(currentHorizontal, targetHorizontal, _acceleration * dt);
+                } else {
+                    // Decelerate to stop
+                    newHorizontal = Vector3.MoveTowards(currentHorizontal, Vector3.zero, _deceleration * dt);
                 }
-                else {
-                    _rigidBody.linearVelocity = Vector3.SmoothDamp(
-                        _rigidBody.linearVelocity,
-                        Vector3.zero,
-                        ref _moveVelocity,
-                        _stopTime,
-                        float.MaxValue,
-                        Time.fixedDeltaTime
-                    );
-                }
+
+                _voxelBody.Velocity = new Vector3(newHorizontal.x, velocity.y, newHorizontal.z);
             }
             else {
-                _rigidBody.AddForce(_moveInput * _aerialControlForce, ForceMode.Acceleration);
+                // Air control - add force but don't override
+                _voxelBody.AddForce(_moveInput * _aerialControlForce);
             }
 
             // Check for voxel intersection.
             var ray = new Ray(_camera.transform.position, _camera.transform.forward);
             if (VoxelWorld.Instance.TraceRay(ray, 10f, out var result)) {
                 Debug.DrawRay(ray.origin, ray.direction, Color.yellow);
-                _selectionCube.transform.position = result.World + new Vector3(0.5f, 0.5f, 0.5f);
+                
+                _selectionCube.SetPositionAndFacing(result.World + new Vector3(0.5f, 0.5f, 0.5f), result.Normal);
+
+                // Update looked-at voxel
+                var voxelData = result.Voxel;
+                _lookingAtVoxel = voxelData.Id > 0 ? VoxelTable.GetVoxelDefinition(voxelData.Id) : null;
 
                 if (_wantsBreak) {
                     VoxelWorld.Instance.TryQueueVoxelUpdate(result.World, VoxelData.Null());
@@ -219,12 +250,17 @@ namespace VektorVoxels.Interaction {
                     _wantsPlace = false;
                 }
             }
+            else {
+                _lookingAtVoxel = null;
+            }
         }
 
         private void OnJumpInput(InputAction.CallbackContext context) {
-            if (!_grounded) return;
-            
-            _rigidBody.AddRelativeForce(Vector3.up * _jumpForce, ForceMode.Impulse);
+            if (!_voxelBody.Grounded) return;
+
+            var velocity = _voxelBody.Velocity;
+            velocity.y = _jumpVelocity;
+            _voxelBody.Velocity = velocity;
         }
 
         public void SetHandVoxel(VoxelDefinition definition) {
@@ -232,7 +268,8 @@ namespace VektorVoxels.Interaction {
         }
 
         public void Teleport(Vector3 position) {
-            throw new System.NotImplementedException();
+            transform.position = position;
+            _voxelBody.Velocity = Vector3.zero;
         }
     }
 }
