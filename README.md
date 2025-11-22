@@ -1,6 +1,7 @@
 # Vektor Voxels
 
-A cubic voxel framework for Unity focused on exploring efficient meshing, full RGB lighting, and concurrent processing. This isn't meant to be a Minecraft clone—it's an exploratory project diving into the algorithms and techniques that make voxel engines tick, with some of my own optimizations thrown in.
+Cubic voxel research project built in Unity to explore Minecraft-like voxel engines, multithreading, and RGB lighting. This should as a decent-enough reference for any curiosities around cubic voxel engines and how to approach them.
+In order to keep up with the industry as well as learn some new principles, the most recent work to bring it to a solid stopping point was done with AI assistance.
 
 ## Features
 
@@ -17,7 +18,6 @@ The mesher generates efficient geometry with per-side textures, block orientatio
 - Procedural terrain generation with layered voxels (bedrock, stone, dirt, grass)
 - Custom shaders integrating voxel lighting with Unity's rendering pipeline
 - DDA-based voxel raycasting for accurate block placement and breaking
-- Support for custom mesh shapes via the `ICustomMesh` interface
 
 ## Getting Started
 
@@ -28,19 +28,21 @@ The mesher generates efficient geometry with per-side textures, block orientatio
 
 ## Project Status
 
-This project has reached its goals and is no longer actively maintained. It successfully demonstrates:
+This project has reached most of the goals I originally set out on and is now at a good stopping point. I may still pop in here and there whenever curiosity calls.
 - Cubic voxel meshing with per-side textures and smooth lighting
 - Full RGB light propagation with emission and color tinting
 - Concurrent chunk processing without blocking the main thread
 
-If you're exploring voxel engine development or looking for reference implementations of these algorithms, feel free to dig through the code. The lighting precision issues mentioned below could largely be fixed by switching from 4-bit to 8-bit color channels—I just went with the more compact format to save memory.
+If you're exploring voxel engine development or looking for reference implementations of these algorithms, feel free to dig through the code.
 
 ## Known Limitations
 
-- No save system—chunks stay in memory and world state isn't persisted
-- The player controller is pretty rough around the edges
-- PhysX can stutter when updating chunk collision meshes on some systems
-- Some RGB color combinations fade out unevenly due to 4-bit precision
+- No save system to support persistence
+- The player controller is very basic
+- The extremely minimal voxel collision means normal Unity objects will not respond to the world.
+  - This was necessary to get around PhysXn stuttering when loading in new chunks rapidly.
+  - May explore re-integration in the future.
+- Greedy meshing is implemented but does not function with smooth lighting.
 
 ## Architecture Overview
 
@@ -52,8 +54,6 @@ The codebase is organized into namespaces under `VektorVoxels/`:
 - **Threading** - Custom thread pool and job system with callbacks
 - **Voxels** - Data structures and voxel definitions
 - **VoxelPhysics** - DDA raycasting for voxel traces
-
-See `CLAUDE.md` for deeper architectural documentation.
 
 ## Credits
 
