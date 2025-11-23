@@ -65,6 +65,13 @@ namespace VektorVoxels.Threading {
             Instance._threadPool.EnqueueWorkItem(item);
             return item;
         }
+
+        /// <summary>
+        /// Dispatches a simple action to run on the thread pool with an optional main-thread callback.
+        /// </summary>
+        public static void DispatchAction(Action work, Action onComplete = null) {
+            Instance._threadPool.EnqueueWorkItem(new ActionJob(work, onComplete));
+        }
         
         /// <summary>
         /// Queues a given action to be executed on the main thread.

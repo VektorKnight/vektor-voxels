@@ -34,19 +34,27 @@ namespace VektorVoxels.VoxelPhysics {
             var start = chunk.WorldToLocal(ray.origin);
             var voxel = start.Floor();
             var chunkSize = VoxelWorld.CHUNK_SIZE;
-            
+
+            // Early out for degenerate rays
+            if (l.sqrMagnitude < 0.0001f) {
+                result = default;
+                return false;
+            }
+
             // Step direction per axis: +1, 0, or -1 based on ray direction.
             var step = new Vector3Int(
                 (int)Mathf.Sign(ray.direction.x),
                 (int)Mathf.Sign(ray.direction.y),
                 (int)Mathf.Sign(ray.direction.z)
             );
-            
+
             // Reciprocal of ray direction: t-parameter increment to cross one grid cell per axis.
+            // Use large value instead of infinity for near-zero components to avoid NaN issues.
+            const float epsilon = 0.0001f;
             var stepSize = new Vector3(
-                1f / Mathf.Abs(l.x),
-                1f / Mathf.Abs(l.y),
-                1f / Mathf.Abs(l.z)
+                Mathf.Abs(l.x) > epsilon ? 1f / Mathf.Abs(l.x) : float.MaxValue,
+                Mathf.Abs(l.y) > epsilon ? 1f / Mathf.Abs(l.y) : float.MaxValue,
+                Mathf.Abs(l.z) > epsilon ? 1f / Mathf.Abs(l.z) : float.MaxValue
             );
 
             // Make sure we didn't just start in a solid voxel.

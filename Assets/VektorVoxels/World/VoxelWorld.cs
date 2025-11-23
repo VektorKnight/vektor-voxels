@@ -9,6 +9,7 @@ using VektorVoxels.Threading;
 using VektorVoxels.Threading.Jobs;
 using VektorVoxels.Voxels;
 using VektorVoxels.VoxelPhysics;
+using VektorVoxels.Persistence;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
@@ -54,6 +55,14 @@ namespace VektorVoxels.World {
         private Queue<Chunk> _loadQueue;
         private HashSet<Chunk> _loadQueueSet;
         private bool _needsSort;
+
+        // Persistence.
+        private WorldPersistence _persistence;
+        private float _autoSaveTimer;
+        private float _autoSaveInterval = 30f;
+
+        public WorldPersistence Persistence => _persistence;
+        public bool IsWorldLoaded => _persistence?.IsWorldLoaded ?? false;
 
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
@@ -221,7 +230,7 @@ namespace VektorVoxels.World {
             }
 
             Instance = this;
-            
+
             // Limit max framerate to 360 cause coil whine is annoying.
             Application.targetFrameRate = 360;
 
@@ -232,9 +241,103 @@ namespace VektorVoxels.World {
             _chunksToLoad = new List<Chunk>();
             _loadQueue = new Queue<Chunk>();
             _loadQueueSet = new HashSet<Chunk>();
+            _persistence = new WorldPersistence();
 
             // Configure thread pool throttled queue.
             GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
+        }
+
+        /// <summary>
+        /// Creates a new world with the given name and seed.
+        /// </summary>
+        public bool CreateWorld(string name, int seed) {
+            if (!_persistence.CreateWorld(name, seed)) {
+                return false;
+            }
+
+            // Mark all existing chunks as dirty so they get saved
+            foreach (var chunk in _loadedChunks) {
+                chunk.MarkPersistenceDirty();
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Loads an existing world by name.
+        /// </summary>
+        public bool LoadWorld(string name, out List<string> missingVoxels) {
+            if (!_persistence.LoadWorld(name, out missingVoxels)) {
+                return false;
+            }
+
+            // Clear all existing chunks so they reload from disk
+            ClearAllChunks();
+            return true;
+        }
+
+        /// <summary>
+        /// Clears all loaded chunks, forcing them to reload.
+        /// </summary>
+        private void ClearAllChunks() {
+            // Destroy all chunk GameObjects
+            foreach (var chunk in _loadedChunks) {
+                if (chunk != null) {
+                    Destroy(chunk.gameObject);
+                }
+            }
+
+            // Clear tracking collections
+            _loadedChunks.Clear();
+            _loadQueue.Clear();
+            _loadQueueSet.Clear();
+
+            // Clear the chunk array
+            for (var x = 0; x < _maxChunks.x; x++) {
+                for (var z = 0; z < _maxChunks.y; z++) {
+                    _chunks[x, z] = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets all available world names.
+        /// </summary>
+        public string[] GetAvailableWorlds() {
+            return _persistence.GetAvailableWorlds();
+        }
+
+        /// <summary>
+        /// Saves all dirty chunks to disk.
+        /// </summary>
+        public void SaveWorld() {
+            if (!IsWorldLoaded) return;
+
+            var savedCount = 0;
+            foreach (var chunk in _loadedChunks) {
+                if (chunk.PersistenceDirty) {
+                    _persistence.SaveChunkAsync(chunk.ChunkPos, chunk.VoxelData, () => {
+                        chunk.ClearPersistenceDirty();
+                    });
+                    savedCount++;
+                }
+            }
+
+            if (savedCount > 0) {
+                _persistence.SaveWorldMetadata();
+                Debug.Log($"[VoxelWorld] Saved {savedCount} chunks.");
+            }
+        }
+
+        /// <summary>
+        /// Gets the number of chunks that need saving.
+        /// </summary>
+        public int GetDirtyChunkCount() {
+            var count = 0;
+            foreach (var chunk in _loadedChunks) {
+                if (chunk.PersistenceDirty) count++;
+            }
+            return count;
         }
         
         /// <summary>
@@ -270,6 +373,11 @@ namespace VektorVoxels.World {
 
         private void FixedUpdate() {
             if (_loadTransform == null) {
+                return;
+            }
+
+            // Wait until a world is loaded before generating chunks
+            if (!IsWorldLoaded) {
                 return;
             }
             
@@ -325,10 +433,31 @@ namespace VektorVoxels.World {
                 if (count <= 0) {
                     break;
                 }
-                
+
                 var chunk = _loadQueue.Dequeue();
                 _loadQueueSet.Remove(chunk);
-                chunk.Initialize();
+
+                // Try to load from persistence if world is loaded
+                if (IsWorldLoaded && _persistence.ChunkExists(chunk.ChunkPos)) {
+                    var dimensions = CHUNK_SIZE;
+                    var dataSize = dimensions.x * dimensions.y * dimensions.x;
+                    var voxelData = new VoxelData[dataSize];
+
+                    if (_persistence.LoadChunk(chunk.ChunkPos, voxelData)) {
+                        chunk.InitializeWithData(voxelData);
+                    }
+                    else {
+                        chunk.Initialize();
+                    }
+                }
+                else {
+                    chunk.Initialize();
+                    // Mark newly generated chunks as dirty for persistence
+                    if (IsWorldLoaded) {
+                        chunk.MarkPersistenceDirty();
+                    }
+                }
+
                 _loadedChunks.Add(chunk);
                 count--;
             }
@@ -344,6 +473,15 @@ namespace VektorVoxels.World {
             foreach (var chunk in _loadedChunks) {
                 chunk.OnTick();
             }
+
+            // Auto-save dirty chunks on interval
+            if (IsWorldLoaded) {
+                _autoSaveTimer += Time.deltaTime;
+                if (_autoSaveTimer >= _autoSaveInterval) {
+                    _autoSaveTimer = 0f;
+                    SaveWorld();
+                }
+            }
         }
 
         private void LateUpdate() {
@@ -352,10 +490,24 @@ namespace VektorVoxels.World {
             }
         }
 
+        private void OnApplicationQuit() {
+            // Save all dirty chunks on quit
+            if (IsWorldLoaded) {
+                Debug.Log("[VoxelWorld] Saving world on exit...");
+                foreach (var chunk in _loadedChunks) {
+                    if (chunk.PersistenceDirty) {
+                        _persistence.SaveChunk(chunk.ChunkPos, chunk.VoxelData);
+                        chunk.ClearPersistenceDirty();
+                    }
+                }
+                _persistence.SaveWorldMetadata();
+            }
+        }
+
         private void OnDrawGizmos() {
             Gizmos.color = Color.green;
             Gizmos.DrawWireCube(new Vector3(_loadRect.Position.x, 0, _loadRect.Position.y) * CHUNK_SIZE.x, new Vector3(_viewDistance * 2, 1, _viewDistance * 2) * CHUNK_SIZE.x);
-            
+
             Gizmos.color = Color.red;
             Gizmos.DrawWireCube(Vector3.zero, new Vector3(_maxChunks.x, 16, _maxChunks.y) * CHUNK_SIZE.x);
         }

@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using VektorVoxels.Input;
+using VektorVoxels.UI;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
@@ -149,6 +150,13 @@ namespace VektorVoxels.Interaction {
         }
 
         private void Update() {
+            // Skip input when UI is open
+            if (WorldUI.IsUIOpen) {
+                _moveInput = Vector3.zero;
+                _lookInput = Vector2.zero;
+                return;
+            }
+
             // Poll latest movement input.
             var moveInput = _playerControls.Gameplay.Move.ReadValue<Vector2>();
             _moveInput.x = moveInput.x;
