@@ -29,6 +29,11 @@ namespace VektorVoxels.VoxelPhysics {
         /// <param name="result">Hit result with local/world position and voxel data.</param>
         /// <returns>True if voxel hit, false if ray exits chunk without hit.</returns>
         public static bool TraceRay(Ray ray, Chunk chunk, float distance, out VoxelTraceResult result) {
+            if (!chunk) {
+                result = default;
+                return false;
+            }
+            
             // Calculate step values.
             var l = ray.direction * distance;
             var start = chunk.WorldToLocal(ray.origin);
