@@ -45,3 +45,5 @@ UserSettings/Layouts/default-6000.dwlt
 /UserSettings
 *.dwlt
 /UserSettings
+/.vscode
+*.slnx

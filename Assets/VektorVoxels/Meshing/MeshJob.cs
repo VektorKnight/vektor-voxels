@@ -66,7 +66,7 @@ namespace VektorVoxels.Meshing {
 
                 // Invoke callback on main if specified.
                 if (_callBack != null) {
-                    GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Default);
+                    GlobalThreadPool.DispatchOnMain(_callBack, QueueType.Throttled);
                 }
             }
             else {
