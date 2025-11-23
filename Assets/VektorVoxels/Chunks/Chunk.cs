@@ -657,11 +657,38 @@ namespace VektorVoxels.Chunks {
         }
 
         /// <summary>
-        /// Marks neighbors for reload when voxels are updated.
+        /// Determines which neighbor indices need updating based on voxel position and type.
+        /// Returns a bitmask where bit i indicates neighbor i needs updating.
         /// </summary>
-        private void UpdateAvailableNeighbors() {
+        private int GetAffectedNeighbors(Vector3Int localPos, VoxelData data) {
+            int affected = 0;
+            var chunkSize = VoxelWorld.CHUNK_SIZE;
+
+            // Check if on chunk boundaries - only affects adjacent neighbor's mesh
+            if (localPos.x == 0) affected |= (1 << 3);                    // West
+            if (localPos.x == chunkSize.x - 1) affected |= (1 << 1);      // East
+            if (localPos.z == 0) affected |= (1 << 2);                    // South
+            if (localPos.z == chunkSize.x - 1) affected |= (1 << 0);      // North
+
+            // Light sources and removed voxels affect all cardinal neighbors for light propagation
+            bool affectsLight = data.IsNull || (data.Flags & VoxelFlags.LightSource) != 0;
+            if (affectsLight) {
+                affected |= 0xF; // All 4 cardinals (bits 0-3)
+            }
+
+            return affected;
+        }
+
+        /// <summary>
+        /// Marks specific neighbors for reload based on affected bitmask.
+        /// </summary>
+        private void UpdateAffectedNeighbors(int affectedMask) {
+            if (affectedMask == 0) return;
+
             _neighborFlags = NeighborFlags.None;
-            for (var i = 0; i < 8; i++) {
+            for (var i = 0; i < 4; i++) { // Only check cardinals (0-3)
+                if ((affectedMask & (1 << i)) == 0) continue;
+
                 _neighborBuffer[i] = null;
                 var neighborId = _chunkId + _chunkNeighbors[i];
 
@@ -674,7 +701,7 @@ namespace VektorVoxels.Chunks {
                 }
 
                 if (!VoxelWorld.Instance.IsChunkLoaded(neighborId)) {
-                    return;
+                    continue;
                 }
 
                 var neighbor = VoxelWorld.Instance.Chunks[neighborId.x, neighborId.y];
@@ -731,7 +758,7 @@ namespace VektorVoxels.Chunks {
             if (_state == ChunkState.WaitingForNeighbors) {
                 // Still call occasionally as a safety net - events should handle most cases.
                 // This catches newly loaded neighbors that weren't subscribed when we started waiting.
-                if (Time.frameCount % 10 == 0) {
+                if (Time.frameCount % 2 == 0) {
                     CheckForNeighborState();
                 }
                 return;
@@ -760,6 +787,7 @@ namespace VektorVoxels.Chunks {
                 // Process voxel and height updates.
                 if (!_voxelUpdates.IsEmpty) {
                     var d = VoxelWorld.CHUNK_SIZE;
+                    int affectedNeighbors = 0;
 
                     // Process voxel updates and queue height updates.
                     while (_voxelUpdates.TryDequeue(out var update)) {
@@ -771,11 +799,14 @@ namespace VektorVoxels.Chunks {
 
                         _voxelData[VoxelUtility.VoxelIndex(update.Position, d)] = update.Data;
                         UpdateHeightMapColumn(new Vector2Int(update.Position.x, update.Position.z));
+
+                        // Accumulate which neighbors are affected by this update
+                        affectedNeighbors |= GetAffectedNeighbors(update.Position, update.Data);
                     }
 
                     _isDirty = true;
                     _persistenceDirty = true;
-                    UpdateAvailableNeighbors();
+                    UpdateAffectedNeighbors(affectedNeighbors);
                 }
             }
         }

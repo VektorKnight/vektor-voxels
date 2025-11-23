@@ -191,12 +191,19 @@ namespace VektorVoxels.Lighting {
                 var cpi = VoxelUtility.VoxelIndex(node.Position, d);
                 var current = lightMap[cpi];
 
+                // Decompose values to check if this node improves the lightmap.
+                node.Value.Decompose(out var nr, out var ng, out var nb, out _);
+                current.Decompose(out var cr, out var cg, out var cb, out _);
+
+                // Skip if this node doesn't improve any channel - prevents redundant propagation
+                // when the same position is reached via multiple paths.
+                if (nr <= cr && ng <= cg && nb <= cb) {
+                    continue;
+                }
+
                 // Write max of the current light and node values.
                 current = VoxelColor.Max(current, node.Value);
                 lightMap[cpi] = current;
-
-                // Decompose the light here to avoid unnecessary bit ops till the packed value is needed.
-                node.Value.Decompose(out var nr, out var ng, out var nb, out _);
 
                 // Done propagating if the node value is below threshold on all channels.
                 if (nr <= LIGHT_THRESHOLD && ng <= LIGHT_THRESHOLD && nb <= LIGHT_THRESHOLD) {

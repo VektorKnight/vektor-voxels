@@ -18,16 +18,19 @@ Track active work for continuity across sessions.
 4. Polish for GitHub showcase
 
 **Current State:**
-Save system implemented. Several critical bug fixes applied. Lighting edge case fix was attempted but reverted - needs reinvestigation.
+Voxel update latency issue RESOLVED. Ready to continue with Phase 3 (PhysX collision stuttering).
+
+**Latency Fix (2025-11-22) - RESOLVED:**
+Root cause was exponential redundant work in `LightMapper.PropagateLightNodes()`. When a position was reached via multiple paths, each node would propagate outward even if it didn't improve the lightmap. Fixed by adding early exit check before propagation.
+
+Additional optimizations applied:
+- MeshJob callbacks changed from Throttled to Default queue (immediate processing)
+- Smart neighbor updates: only mark affected neighbors based on voxel position/type
+- Reduced WaitingForNeighbors polling from 10 frames to 2 frames
 
 **Next Session Entry Point:**
-1. **Investigate lighting boundary edge cases** - Reverted fix needs simpler approach
-   - Issue: Partial chunks don't get proper boundary lighting when neighbors load later
-   - Previous approach (subscription/polling) was too complex
-   - Consider using existing LoadRegionChanged event mechanism
-   - See `CheckAllNeighborsReady()` method (currently unused) in Chunk.cs
-
-2. **Continue with Phase 3** - PhysX collision stuttering fix
+1. **Phase 3** - PhysX collision stuttering fix
+2. **Phase 4** - Polish for showcase
 
 **Phases:**
 - [x] Phase 1: Critical fixes, performance wins, code cleanup
@@ -46,11 +49,18 @@ Save system implemented. Several critical bug fixes applied. Lighting edge case 
 - Plan documented in `docs/save_system_plan.md`
 
 **Bug Fixes (2025-11-22):**
-- ConcurrentQueue for voxel updates (thread safety) - `Chunks/Chunk.cs`
+- ConcurrentQueue for voxel updates (thread safety) - `Chunks/Chunk.cs` - **Note: User reverted to regular Queue**
 - VoxelTrace division by zero protection - `VoxelPhysics/VoxelTrace.cs`
-- Mesh callback latency fix (throttled → default queue) - `Meshing/MeshJob.cs`
+- Mesh callback latency fix (throttled → default queue) - `Meshing/MeshJob.cs` - **Note: User reverted to Throttled**
 - Added `GlobalThreadPool.DispatchAction()` for simple async work
 - Added `ActionJob` for thread pool actions
+
+**Latency Investigation (2025-11-22):**
+- User reports extreme latency on boundary voxel placement (started after earlier threading changes)
+- Distant chunks finish loading before near chunks (expected due to fewer neighbor dependencies)
+- Lock contention occurs when chunks try to read neighbors still in Lighting state
+- The leapfrog pattern is caused by sequential event handler processing
+- User made additional changes: removed _persistenceDirty field, reverted _voxelUpdates to regular Queue
 
 **Documentation Audit (2025-11-22):**
 Added XML docs to: VektorPlayer, LightJob, NeighborSet, MeshJob, MeshTables, VoxelUtility, FacingDirection.
