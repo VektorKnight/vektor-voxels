@@ -9,7 +9,7 @@ namespace VektorVoxels.Voxels {
         public readonly string FriendlyName;
         public readonly VoxelFlags Flags;
         public readonly FacingDirection Orientation;
-        public readonly Color16 ColorData;
+        public readonly VoxelColor ColorData;
         
         // Top and Side texture rects.
         public readonly Rect[] TextureRects;
@@ -19,7 +19,7 @@ namespace VektorVoxels.Voxels {
         /// Use this constructor to define your voxels.
         /// IDs are set automatically by order of definition at runtime.
         /// </summary>
-        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, FacingDirection orientation, Color16 colorData, Vector2 atlasIndex) {
+        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, FacingDirection orientation, VoxelColor colorData, Vector2 atlasIndex) {
             Id = 0;
             InternalName = internalName;
             FriendlyName = friendlyName;
@@ -44,7 +44,7 @@ namespace VektorVoxels.Voxels {
         /// Use this constructor to define your voxels.
         /// IDs are set automatically by order of definition at runtime.
         /// </summary>
-        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, FacingDirection orientation, Color16 colorData, Vector2[] atlasIndices) {
+        public VoxelDefinition(string internalName, string friendlyName, VoxelFlags flags, FacingDirection orientation, VoxelColor colorData, Vector2[] atlasIndices) {
             Id = 0;
             InternalName = internalName;
             FriendlyName = friendlyName;

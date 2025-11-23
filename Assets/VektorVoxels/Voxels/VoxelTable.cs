@@ -115,10 +115,10 @@ namespace VektorVoxels.Voxels {
         /// </summary>
         private static readonly VoxelDefinition[] UserVoxels = {
             new VoxelDefinition(
-                "grass", "Grass", 
-                VoxelFlags.None, 
+                "grass", "Grass",
+                VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new [] {
                     new Vector2(1, 0),
                     new Vector2(1, 0),
@@ -129,115 +129,115 @@ namespace VektorVoxels.Voxels {
                 }
             ),
             new VoxelDefinition(
-                "dirt", "Dirt", 
+                "dirt", "Dirt",
                 VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new Vector2(2, 0)
             ),
             new VoxelDefinition(
-                "gravel", "Gravel", 
+                "gravel", "Gravel",
                 VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new Vector2(3, 0)
             ),
             new VoxelDefinition(
-                "sand", "Sand", 
+                "sand", "Sand",
                 VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new Vector2(4, 0)
             ),
             new VoxelDefinition(
-                "stone", "Stone", 
-                VoxelFlags.None, 
+                "stone", "Stone",
+                VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new Vector2(5, 0)
             ),
             new VoxelDefinition(
-                "bedrock", "Bedrock", 
-                VoxelFlags.None, 
+                "bedrock", "Bedrock",
+                VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new Vector2(6, 0)
             ),
             new VoxelDefinition(
-                "cobblestone", "Cobblestone", 
-                VoxelFlags.None, 
+                "cobblestone", "Cobblestone",
+                VoxelFlags.None,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.Clear(),
                 new Vector2(0, 1)
             ),
             new VoxelDefinition(
-                "glass", "Glass", 
-                VoxelFlags.AlphaRender, 
+                "glass", "Glass",
+                VoxelFlags.AlphaRender,
                 FacingDirection.North,
-                Color16.Clear(), 
+                VoxelColor.White(),  // Full pass-through
                 new Vector2(0, 6)
             ),
             new VoxelDefinition(
-                "glass_red", "Red Glass", 
-                VoxelFlags.AlphaRender, 
+                "glass_red", "Red Glass",
+                VoxelFlags.AlphaRender,
                 FacingDirection.North,
-                new Color16(15, 8, 4, 0).ToAttenuation(), 
+                new VoxelColor(255, 64, 64),  // Pass red, block most green/blue
                 new Vector2(3, 6)
             ),
             new VoxelDefinition(
-                "glass_green", "Green Glass", 
-                VoxelFlags.AlphaRender, 
+                "glass_green", "Green Glass",
+                VoxelFlags.AlphaRender,
                 FacingDirection.North,
-                new Color16(2, 15, 1, 0).ToAttenuation(), 
+                new VoxelColor(64, 255, 64),  // Pass green, block most red/blue
                 new Vector2(6, 6)
             ),
             new VoxelDefinition(
-                "glass_blue", "Blue Glass", 
-                VoxelFlags.AlphaRender, 
+                "glass_blue", "Blue Glass",
+                VoxelFlags.AlphaRender,
                 FacingDirection.North,
-                new Color16(1, 4, 15, 0).ToAttenuation(), 
+                new VoxelColor(64, 64, 255),  // Pass blue, block most red/green
                 new Vector2(9, 6)
             ),
             new VoxelDefinition(
-                "lightstone", "Lightstone", 
+                "lightstone", "Lightstone",
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(15, 15, 15, 0), 
+                new VoxelColor(255, 255, 255),
                 new Vector2(0, 7)
             ),
             new VoxelDefinition(
-                "lightstone_red", "Red Lightstone", 
+                "lightstone_red", "Red Lightstone",
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(15, 0, 0, 0), 
+                new VoxelColor(255, 0, 0),
                 new Vector2(1, 7)
             ),
             new VoxelDefinition(
-                "lightstone_green", "Green Lightstone", 
+                "lightstone_green", "Green Lightstone",
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(0, 15, 0, 0), 
+                new VoxelColor(0, 255, 0),
                 new Vector2(2, 7)
             ),
             new VoxelDefinition(
-                "lightstone_blue", "Blue Lightstone", 
+                "lightstone_blue", "Blue Lightstone",
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(0, 0, 15, 0), 
+                new VoxelColor(0, 0, 255),
                 new Vector2(3, 7)
             ),
             new VoxelDefinition(
-                "lightstone_yellow", "Yellow Lightstone", 
+                "lightstone_yellow", "Yellow Lightstone",
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(15, 12, 0, 0), 
+                new VoxelColor(255, 204, 0),
                 new Vector2(4, 7)
             ),
             new VoxelDefinition(
-                "lightstone_purple", "Purple Lightstone", 
+                "lightstone_purple", "Purple Lightstone",
                 VoxelFlags.LightSource,
                 FacingDirection.North,
-                new Color16(7, 0, 15, 0), 
+                new VoxelColor(119, 0, 255),
                 new Vector2(5, 7)
             ),
         };

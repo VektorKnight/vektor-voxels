@@ -38,6 +38,12 @@ Added XML docs to: VektorPlayer, LightJob, NeighborSet, MeshJob, MeshTables, Vox
 Core files (Chunk, VoxelWorld, LightMapper, VoxelBody, VoxelCollider, VoxelTrace) already well-documented.
 Enums (ChunkState, LightPass, VoxelFlags, ChunkEvent, NeighborFlags) already documented.
 
+**Memory Optimizations (2025-11-22):**
+- VoxelColor (RGB565): Lighting memory halved (512 KB → 256 KB per chunk)
+- Consolidated LightColor and Color16 into unified VoxelColor type
+- Simplified translucent tinting: ColorData is now direct pass-through multiplier (no attenuation inversion)
+- Color16 marked deprecated
+
 **Artifacts:**
 - `docs/phase1_summary.md` - Learning summary (after completion)
 - `docs/phase2_summary.md` - Learning summary (after completion)

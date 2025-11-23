@@ -52,7 +52,7 @@ namespace VektorVoxels.Meshing {
             public ushort VoxelId;
             public VoxelFlags Flags;
             public LightData Light;
-            public Color16 VoxelColor; // For light source voxels
+            public VoxelColor VoxelColor; // For light source voxels
 
             public bool CanMerge(in FaceMask other) {
                 return VoxelId == other.VoxelId &&
@@ -75,13 +75,13 @@ namespace VektorVoxels.Meshing {
         /// Calculates smooth vertex lighting by averaging neighboring light values.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Color32 GetVertexLight(int vertexIndex, LightColor center, Span<LightData> neighbors) {
+        private static Color32 GetVertexLight(int vertexIndex, VoxelColor center, Span<LightData> neighbors) {
             return vertexIndex switch {
                 0 => MeshUtility.CalculateVertexLight(center, neighbors[4].Sun, neighbors[5].Sun, neighbors[6].Sun),
                 1 => MeshUtility.CalculateVertexLight(center, neighbors[6].Sun, neighbors[7].Sun, neighbors[0].Sun),
                 2 => MeshUtility.CalculateVertexLight(center, neighbors[0].Sun, neighbors[1].Sun, neighbors[2].Sun),
                 3 => MeshUtility.CalculateVertexLight(center, neighbors[2].Sun, neighbors[3].Sun, neighbors[4].Sun),
-                _ => LightColor.Clear().ToColor32()
+                _ => VoxelColor.Clear().ToColor32()
             };
         }
 
@@ -89,13 +89,13 @@ namespace VektorVoxels.Meshing {
         /// Calculates smooth vertex block lighting by averaging neighboring light values.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Color32 GetVertexBlockLight(int vertexIndex, LightColor center, Span<LightData> neighbors) {
+        private static Color32 GetVertexBlockLight(int vertexIndex, VoxelColor center, Span<LightData> neighbors) {
             return vertexIndex switch {
                 0 => MeshUtility.CalculateVertexLight(center, neighbors[4].Block, neighbors[5].Block, neighbors[6].Block),
                 1 => MeshUtility.CalculateVertexLight(center, neighbors[6].Block, neighbors[7].Block, neighbors[0].Block),
                 2 => MeshUtility.CalculateVertexLight(center, neighbors[0].Block, neighbors[1].Block, neighbors[2].Block),
                 3 => MeshUtility.CalculateVertexLight(center, neighbors[2].Block, neighbors[3].Block, neighbors[4].Block),
-                _ => LightColor.Clear().ToColor32()
+                _ => VoxelColor.Clear().ToColor32()
             };
         }
 
@@ -104,7 +104,7 @@ namespace VektorVoxels.Meshing {
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void PopulateSmoothLightBuffer(int faceIndex, Vector3Int np, Vector2Int d,
-            LightColor[] sunLight, LightColor[] blockLight, in NeighborSet neighbors, Span<LightData> lightBuffer) {
+            VoxelColor[] sunLight, VoxelColor[] blockLight, in NeighborSet neighbors, Span<LightData> lightBuffer) {
             for (var l = 0; l < 8; l++) {
                 var lnp = MeshTables.LightNeighbors[faceIndex][l] + np;
                 var lni = VoxelUtility.VoxelIndex(lnp, d);
@@ -388,7 +388,7 @@ namespace VektorVoxels.Meshing {
         /// <summary>
         /// Builds the face mask for a single slice.
         /// </summary>
-        private void BuildFaceMask(VoxelData[] voxelGrid, LightColor[] sunLight, LightColor[] blockLight,
+        private void BuildFaceMask(VoxelData[] voxelGrid, VoxelColor[] sunLight, VoxelColor[] blockLight,
             in NeighborSet neighbors, Vector2Int d, int face, Vector3Int neighborDir,
             int sliceAxis, int uAxis, int vAxis, int slice, int uSize, int vSize) {
 

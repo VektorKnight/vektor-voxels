@@ -3,14 +3,15 @@
 namespace VektorVoxels.Lighting {
     /// <summary>
     /// Combined sun and block light at a single voxel.
-    /// Each LightColor uses 8 bits per channel (0-255 intensity).
+    /// Each LightColor uses RGB565 format (16-bit, 32/64/32 levels per channel).
+    /// Total: 4 bytes per voxel.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct LightData {
-        public LightColor Sun;
-        public LightColor Block;
+        public VoxelColor Sun;
+        public VoxelColor Block;
 
-        public LightData(LightColor sun, LightColor block) {
+        public LightData(VoxelColor sun, VoxelColor block) {
             Sun = sun;
             Block = block;
         }

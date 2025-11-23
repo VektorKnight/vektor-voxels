@@ -20,7 +20,7 @@ namespace VektorVoxels.Meshing {
             // Handle out of bounds Y values.
             if (p.y < 0 || p.y >= d.y) {
                 v = VoxelData.Null();
-                l = new LightData(LightColor.White(), LightColor.Clear());
+                l = new LightData(VoxelColor.White(), VoxelColor.Clear());
                 return;
             }
             
@@ -87,7 +87,7 @@ namespace VektorVoxels.Meshing {
             }
             else {
                 v = VoxelData.Null();
-                l = new LightData(LightColor.White(), LightColor.Clear());
+                l = new LightData(VoxelColor.White(), VoxelColor.Clear());
             }
         }
         
@@ -97,7 +97,7 @@ namespace VektorVoxels.Meshing {
         /// Produces ambient occlusion effect as a side effect of corner averaging.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Color32 CalculateVertexLight(LightColor c0, LightColor c1, LightColor c2, LightColor c3) {
+        public static Color32 CalculateVertexLight(VoxelColor c0, VoxelColor c1, VoxelColor c2, VoxelColor c3) {
             // Decompose each color into individual channels.
             c0.Decompose(out var c0r, out var c0g, out var c0b, out var c0a);
             c1.Decompose(out var c1r, out var c1g, out var c1b, out var c1a);

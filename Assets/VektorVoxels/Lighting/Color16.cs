@@ -5,10 +5,10 @@ using UnityEngine;
 
 namespace VektorVoxels.Lighting {
     /// <summary>
-    /// Voxel light color for lighting and attenuation.
-    /// Due to the need for bitwise packing/unpacking,
-    /// this struct should only be used at the start and end of calculations.
+    /// Deprecated: Use LightColor instead.
+    /// 4-bit per channel RGBA color (16 levels per channel).
     /// </summary>
+    [System.Obsolete("Use LightColor (RGB565) instead for better precision with same memory footprint.")]
     public readonly struct Color16 : IFormattable {
         private readonly ushort _packed;
         

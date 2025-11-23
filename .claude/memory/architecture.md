@@ -1,7 +1,7 @@
 # Vektor Voxels - Architectural Knowledge
 
-<!-- Last Updated: 2025-11-21 -->
-<!-- Source: Code audit and documentation pass, threading improvements -->
+<!-- Last Updated: 2025-11-22 -->
+<!-- Source: Code audit, threading improvements, memory optimizations -->
 
 Critical knowledge for understanding and modifying the codebase.
 
@@ -95,26 +95,36 @@ Uninitialized → TerrainGeneration → Lighting → WaitingForNeighbors → Mes
 ### Propagation Algorithm
 
 BFS flood-fill using stacks (`_sunNodes`, `_blockNodes`):
-- Decrement light by 17 per voxel (scaled for 8-bit, maintains ~15 voxel propagation distance)
-- Apply voxel attenuation from `ColorData` (scaled by 17)
-- Stop when all RGB channels ≤ 16
+- Multiplicative attenuation via LIGHT_MULTIPLIER (220/256 per step, ~15 block range)
+- Apply voxel tint from `ColorData` as pass-through multiplier (255 = full pass, 0 = block)
+- Stop when all RGB channels ≤ threshold (16)
 - Reject backwards propagation (node light < existing light)
 
-**Light format:** `LightColor` with 8 bits per channel (0-255 intensity)
+**Light format:** `VoxelColor` with RGB565 (16-bit total: 5/6/5 bits per channel)
 
-**Source:** `Lighting/LightMapper.cs:157-227`
+**Source:** `Lighting/LightMapper.cs:186-256`
 
 ### Sun vs Block Light
 
 - **Sunlight**: Full intensity (255, 255, 255) above heightmap, propagates downward into caverns
-- **Block light**: Point sources from voxels with `LightSource` flag, emits from `ColorData` (upscaled from 4-bit)
+- **Block light**: Point sources from voxels with `LightSource` flag, emits from `ColorData`
+
+### Translucent Tinting [VERIFIED, HIGH]
+
+Colored glass uses `ColorData` as direct pass-through multiplier:
+- `(255, 255, 255)` = full pass (clear glass)
+- `(255, 64, 64)` = pass red, block most green/blue (red glass)
+- Air voxels use `VoxelColor.White()` for full pass-through
+
+No attenuation inversion; values are intuitive (higher = more light passes).
 
 ### Data Structures
 
-- `LightColor` - 32-bit packed struct (8 bits per RGBA channel)
-- `LightNode` - Position + LightColor for propagation queue
-- `LightData` - Combined sun + block light at a voxel
-- `Color16` - Still used for voxel ColorData/attenuation (4-bit per channel)
+- `VoxelColor` - 16-bit RGB565 packed struct (5/6/5 bits per channel, ~32-64 levels)
+- `LightNode` - Position + VoxelColor for propagation queue
+- `LightData` - Combined sun + block light at a voxel (4 bytes total)
+- `VoxelData.ColorData` - Uses VoxelColor for light emission and tinting
+- `Color16` - Deprecated, use VoxelColor instead
 
 ---
 
@@ -237,3 +247,31 @@ Digital Differential Analyzer for voxel raycasting. More efficient than PhysX fo
 5. Check voxel at new position
 
 **Source:** `VoxelPhysics/VoxelTrace.cs:20-115`
+
+---
+
+## Memory Layout [VERIFIED, HIGH]
+
+### Per-Chunk Memory (16×256×16 = 65,536 voxels)
+
+| Data | Size/Voxel | Per Chunk |
+|------|------------|-----------|
+| VoxelData (ID + Flags + Orientation + ColorData) | 6 bytes | 384 KB |
+| LightData (Sun + Block VoxelColor) | 4 bytes | 256 KB |
+| HeightData | - | ~1 KB |
+| **Total** | **10 bytes** | **~640 KB** |
+
+### Memory Optimizations (2025-11-22)
+
+1. **VoxelColor RGB565** - Reduced from 32-bit to 16-bit per color
+   - Lighting memory halved: 512 KB → 256 KB per chunk
+   - Quality: 32/64/32 levels per channel (sufficient, minimal banding)
+
+2. **Color16 Deprecated** - Consolidated to single color type
+   - Better precision than old 4-bit Color16 (16 levels)
+   - Same memory footprint (16-bit)
+
+3. **Future optimizations** (not yet implemented):
+   - Palette compression for VoxelData (~12x reduction possible)
+   - Y-section chunking (60-80% reduction for typical terrain)
+   - Morton coding for cache locality (modest gains)

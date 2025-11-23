@@ -34,18 +34,13 @@ namespace VektorVoxels.Voxels {
         /// Converts to runtime VoxelDefinition with assigned ID.
         /// </summary>
         public VoxelDefinition ToVoxelDefinition(ushort id) {
-            // Convert Unity Color to Color16 (4-bit per channel)
-            var color16 = new Color16(
-                (int)(LightColor.r * 15),
-                (int)(LightColor.g * 15),
-                (int)(LightColor.b * 15),
-                0
+            // Convert Unity Color to LightColor (RGB565)
+            // For translucent blocks, this is the pass-through tint (255 = full pass, 0 = full block)
+            var lightColor = new Lighting.VoxelColor(
+                (int)(LightColor.r * 255),
+                (int)(LightColor.g * 255),
+                (int)(LightColor.b * 255)
             );
-
-            // Handle attenuation for transparent blocks
-            if ((Flags & VoxelFlags.AlphaRender) != 0 && (Flags & VoxelFlags.LightSource) == 0) {
-                color16 = color16.ToAttenuation();
-            }
 
             // Create definition without ID first, then wrap with ID
             VoxelDefinition baseDef;
@@ -55,7 +50,7 @@ namespace VektorVoxels.Voxels {
                     InternalName,
                     Flags,
                     Orientation,
-                    color16,
+                    lightColor,
                     new Vector2(SingleTexture.x, SingleTexture.y)
                 );
             }
@@ -69,7 +64,7 @@ namespace VektorVoxels.Voxels {
                     InternalName,
                     Flags,
                     Orientation,
-                    color16,
+                    lightColor,
                     textures
                 );
             }
@@ -88,9 +83,9 @@ namespace VektorVoxels.Voxels {
                 Orientation = def.Orientation
             };
 
-            // Convert Color16 back to Unity Color
+            // Convert LightColor back to Unity Color
             def.ColorData.Decompose(out var r, out var g, out var b, out _);
-            data.LightColor = new Color(r / 15f, g / 15f, b / 15f, 1f);
+            data.LightColor = new Color(r / 255f, g / 255f, b / 255f, 1f);
 
             // Extract texture coordinates from TextureRects
             // TextureRects are computed as: Rect(x * uvWidth, 1 - y * uvWidth, uvWidth, -uvWidth)

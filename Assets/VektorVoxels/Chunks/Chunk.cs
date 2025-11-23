@@ -45,8 +45,8 @@ namespace VektorVoxels.Chunks {
         private Vector2Int _chunkPos;
         private Vector2Int _worldPos;
         private VoxelData[] _voxelData;
-        private LightColor[] _sunLight;
-        private LightColor[] _blockLight;
+        private VoxelColor[] _sunLight;
+        private VoxelColor[] _blockLight;
         private HeightData[] _heightMap;
         
         // Event/update queues.
@@ -97,8 +97,8 @@ namespace VektorVoxels.Chunks {
         public Vector2Int WorldPosition => _worldPos;
         public VoxelData[] VoxelData => _voxelData;
         public HeightData[] HeightMap => _heightMap;
-        public LightColor[] BlockLight => _blockLight;
-        public LightColor[] SunLight => _sunLight;
+        public VoxelColor[] BlockLight => _blockLight;
+        public VoxelColor[] SunLight => _sunLight;
         public ChunkState State => _state;
         public LightPass LightPass => _lightPass;
         
@@ -150,8 +150,8 @@ namespace VektorVoxels.Chunks {
             var dimensions = VoxelWorld.CHUNK_SIZE;
             var dataSize = dimensions.x * dimensions.y * dimensions.x;
             _voxelData = new VoxelData[dataSize];
-            _sunLight = new LightColor[dataSize];
-            _blockLight = new LightColor[dataSize];
+            _sunLight = new VoxelColor[dataSize];
+            _blockLight = new VoxelColor[dataSize];
             _heightMap = new HeightData[dimensions.x * dimensions.x];
             
             // Set every voxel to air initially.

@@ -128,7 +128,7 @@ namespace VektorVoxels.Lighting {
         private void PropagateBoundaryLight(
             in Chunk home, in Chunk neighbor,
             int hpX, int hpZ, int npX, int npZ, Vector2Int d,
-            LightColor[] homeLightMap, LightColor[] neighborLightMap,
+            VoxelColor[] homeLightMap, VoxelColor[] neighborLightMap,
             Stack<LightNode> nodeStack, bool isSunLight)
         {
             // Determine starting Y: sunlight starts from heightmap, block light from top.
@@ -174,7 +174,7 @@ namespace VektorVoxels.Lighting {
                 var db = (nlb * LIGHT_MULTIPLIER) >> 8;
 
                 // Place a propagation node with the attenuated neighbor values.
-                nodeStack.Push(new LightNode(new Vector3Int(hpX, y, hpZ), new LightColor(dr, dg, db, 0)));
+                nodeStack.Push(new LightNode(new Vector3Int(hpX, y, hpZ), new VoxelColor(dr, dg, db, 0)));
             }
         }
         
@@ -183,7 +183,7 @@ namespace VektorVoxels.Lighting {
         /// applies voxel attenuation from ColorData, and stops when all channels below threshold.
         /// Prevents backwards propagation by rejecting nodes with inferior light values.
         /// </summary>
-        private void PropagateLightNodes(in VoxelData[] voxelData, in LightColor[] lightMap, Vector2Int d, bool sun) {
+        private void PropagateLightNodes(in VoxelData[] voxelData, in VoxelColor[] lightMap, Vector2Int d, bool sun) {
             var stack = sun ? _sunNodes : _blockNodes;
             while (stack.Count > 0) {
                 // Grab node and sample lightmap at the node position.
@@ -192,7 +192,7 @@ namespace VektorVoxels.Lighting {
                 var current = lightMap[cpi];
 
                 // Write max of the current light and node values.
-                current = LightColor.Max(current, node.Value);
+                current = VoxelColor.Max(current, node.Value);
                 lightMap[cpi] = current;
 
                 // Decompose the light here to avoid unnecessary bit ops till the packed value is needed.
@@ -227,15 +227,12 @@ namespace VektorVoxels.Lighting {
                     var dg = (ng * LIGHT_MULTIPLIER) >> 8;
                     var db = (nb * LIGHT_MULTIPLIER) >> 8;
 
-                    // Apply voxel-specific attenuation (e.g., tinted glass).
-                    // ColorData stores 4-bit attenuation per channel; convert to multiplier.
-                    // 0 = no extra attenuation (multiply by 1), 15 = full block (multiply by 0).
-                    neighbor.ColorData.Decompose(out var nar, out var nag, out var nab, out _);
-                    var mulR = 255 - (nar * 17);
-                    var mulG = 255 - (nag * 17);
-                    var mulB = 255 - (nab * 17);
+                    // Apply voxel-specific tint (e.g., colored glass).
+                    // ColorData stores the pass-through multiplier directly.
+                    // 255 = full pass, 0 = full block.
+                    neighbor.ColorData.Decompose(out var mulR, out var mulG, out var mulB, out _);
 
-                    // Apply voxel attenuation multipliers.
+                    // Apply voxel tint multipliers.
                     var ar = (dr * mulR) >> 8;
                     var ag = (dg * mulG) >> 8;
                     var ab = (db * mulB) >> 8;
@@ -253,7 +250,7 @@ namespace VektorVoxels.Lighting {
                     }
 
                     // Push a new node to the stack.
-                    stack.Push(new LightNode(np, new LightColor(ar, ag, ab, 0)));
+                    stack.Push(new LightNode(np, new VoxelColor(ar, ag, ab, 0)));
                 }
             }
         }
@@ -272,7 +269,7 @@ namespace VektorVoxels.Lighting {
             // Clear all light in one call - much faster than individual writes.
             System.Array.Clear(sunLight, 0, sunLight.Length);
 
-            var fullLight = new LightColor(255, 255, 255, 0);
+            var fullLight = new VoxelColor(255, 255, 255, 0);
 
             // For each column, set sunlight above heightmap and find cavern entry points.
             for (var z = 0; z < d.x; z++) {
@@ -401,13 +398,11 @@ namespace VektorVoxels.Lighting {
                     for (var x = 0; x < d.x; x++) {
                         var idx = VoxelUtility.VoxelIndex(x, y, z, d);
                         var voxel = voxelData[idx];
-                        blockLight[idx] = LightColor.Clear();
+                        blockLight[idx] = VoxelColor.Clear();
 
                         if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
 
-                        // Convert 4-bit ColorData to 8-bit LightColor.
-                        var lightColor = LightColor.FromColor16(voxel.ColorData);
-                        _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), lightColor));
+                        _blockNodes.Push(new LightNode(new Vector3Int(x, y, z), voxel.ColorData));
                     }
                 }
             }
