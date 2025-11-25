@@ -19,8 +19,8 @@ namespace VektorVoxels.Meshing {
             
             // Handle out of bounds Y values.
             if (p.y < 0 || p.y >= d.y) {
-                v = VoxelData.Null();
-                l = new LightData(VoxelColor.White(), VoxelColor.Clear());
+                v = VoxelData.Empty();
+                l = new LightData(VoxelColor.White(), VoxelColor.Black());
                 return;
             }
             
@@ -86,8 +86,8 @@ namespace VektorVoxels.Meshing {
                 l = new LightData(neighbor.SunLight[nvi], neighbor.BlockLight[nvi]);
             }
             else {
-                v = VoxelData.Null();
-                l = new LightData(VoxelColor.White(), VoxelColor.Clear());
+                v = VoxelData.Empty();
+                l = new LightData(VoxelColor.White(), VoxelColor.Black());
             }
         }
         

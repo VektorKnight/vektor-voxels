@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using UnityEngine;
 using VektorVoxels.Chunks;
@@ -22,7 +23,7 @@ namespace VektorVoxels.Lighting {
         private const int LIGHT_THRESHOLD = 16;
 
         // Estimated stack capacity: chunk is 16x256x16, typical propagation hits ~10% of voxels.
-        private const int ESTIMATED_NODE_CAPACITY = 6000;
+        private const int ESTIMATED_NODE_CAPACITY = 32000;
 
         // Static thread-local instance for the job system.
         private static readonly ThreadLocal<LightMapper> _threadLocal = new ThreadLocal<LightMapper>(() => new LightMapper());
@@ -146,7 +147,7 @@ namespace VektorVoxels.Lighting {
                 var voxel = home.VoxelData[vpi];
 
                 // Skip if voxel at boundary is opaque.
-                if (voxel.Id != 0 && !voxel.HasFlag(VoxelFlags.AlphaRender)) {
+                if (voxel.IsOpaque()) {
                     continue;
                 }
 
@@ -157,6 +158,7 @@ namespace VektorVoxels.Lighting {
                 neighborLight.Decompose(out var nlr, out var nlg, out var nlb, out _);
 
                 // Skip if neighbor light is below threshold on all channels.
+                // TODO: Investigate or improper or incomplete skip.
                 if (nlr <= LIGHT_THRESHOLD && nlg <= LIGHT_THRESHOLD && nlb <= LIGHT_THRESHOLD) {
                     continue;
                 }
@@ -174,10 +176,10 @@ namespace VektorVoxels.Lighting {
                 var db = (nlb * LIGHT_MULTIPLIER) >> 8;
 
                 // Place a propagation node with the attenuated neighbor values.
-                nodeStack.Push(new LightNode(new Vector3Int(hpX, y, hpZ), new VoxelColor(dr, dg, db, 0)));
+                nodeStack.Push(new LightNode(new Vector3Int(hpX, y, hpZ), new VoxelColor(dr, dg, db)));
             }
         }
-        
+
         /// <summary>
         /// BFS flood-fill light propagation. Decrements intensity per voxel,
         /// applies voxel attenuation from ColorData, and stops when all channels below threshold.
@@ -186,26 +188,28 @@ namespace VektorVoxels.Lighting {
         private void PropagateLightNodes(in VoxelData[] voxelData, in VoxelColor[] lightMap, Vector2Int d, bool sun) {
             var stack = sun ? _sunNodes : _blockNodes;
             while (stack.Count > 0) {
-                // Grab node and sample lightmap at the node position.
                 var node = stack.Pop();
                 var cpi = VoxelUtility.VoxelIndex(node.Position, d);
                 var current = lightMap[cpi];
 
-                // Decompose values to check if this node improves the lightmap.
+                // Decompose node and current lightmap values.
                 node.Value.Decompose(out var nr, out var ng, out var nb, out _);
                 current.Decompose(out var cr, out var cg, out var cb, out _);
 
-                // Skip if this node doesn't improve any channel - prevents redundant propagation
-                // when the same position is reached via multiple paths.
-                if (nr <= cr && ng <= cg && nb <= cb) {
+                // Check if this node improves any channel of the lightmap.
+                bool improves = nr > cr || ng > cg || nb > cb;
+
+                // Skip if this node doesn't improve the lightmap - prevents revisiting.
+                if (!improves) {
                     continue;
                 }
 
-                // Write max of the current light and node values.
-                current = VoxelColor.Max(current, node.Value);
-                lightMap[cpi] = current;
+                // CRITICAL: Update the lightmap with the max of current and node values.
+                // Without this, the same position appears "improvable" on every visit,
+                // causing exponential work as multiple paths converge on the same voxels.
+                lightMap[cpi] = VoxelColor.Max(current, node.Value);
 
-                // Done propagating if the node value is below threshold on all channels.
+                // Stop propagating if all channels are at or below threshold.
                 if (nr <= LIGHT_THRESHOLD && ng <= LIGHT_THRESHOLD && nb <= LIGHT_THRESHOLD) {
                     continue;
                 }
@@ -225,7 +229,7 @@ namespace VektorVoxels.Lighting {
                     var neighborLight = lightMap[npi];
 
                     // Skip if neighbor is opaque.
-                    if (neighbor.Id != 0 && (neighbor.Flags & VoxelFlags.AlphaRender) == 0) {
+                    if (neighbor.IsOpaque()) {
                         continue;
                     }
 
@@ -235,14 +239,21 @@ namespace VektorVoxels.Lighting {
                     var db = (nb * LIGHT_MULTIPLIER) >> 8;
 
                     // Apply voxel-specific tint (e.g., colored glass).
-                    // ColorData stores the pass-through multiplier directly.
-                    // 255 = full pass, 0 = full block.
-                    neighbor.ColorData.Decompose(out var mulR, out var mulG, out var mulB, out _);
-
-                    // Apply voxel tint multipliers.
-                    var ar = (dr * mulR) >> 8;
-                    var ag = (dg * mulG) >> 8;
-                    var ab = (db * mulB) >> 8;
+                    // Air voxels (Id = 0) don't have meaningful ColorData, treat as full pass-through.
+                    // For other voxels, ColorData stores the pass-through multiplier (255 = full pass, 0 = full block).
+                    // TODO: Air/empty can just have a white color, is this potential divergence worth it?
+                    int ar, ag, ab;
+                    if (neighbor.IsEmpty()) {
+                        ar = dr;
+                        ag = dg;
+                        ab = db;
+                    }
+                    else {
+                        neighbor.ColorData.Decompose(out var mulR, out var mulG, out var mulB, out _);
+                        ar = (dr * mulR) >> 8;
+                        ag = (dg * mulG) >> 8;
+                        ab = (db * mulB) >> 8;
+                    }
 
                     // Skip if attenuated light is zero.
                     if (ar + ag + ab == 0) {
@@ -257,7 +268,9 @@ namespace VektorVoxels.Lighting {
                     }
 
                     // Push a new node to the stack.
-                    stack.Push(new LightNode(np, new VoxelColor(ar, ag, ab, 0)));
+                    stack.Push(
+                        new LightNode(np, new VoxelColor(ar, ag, ab))
+                    );
                 }
             }
         }
@@ -271,18 +284,33 @@ namespace VektorVoxels.Lighting {
             var sunLight = chunk.SunLight;
             var d = VoxelWorld.CHUNK_SIZE;
 
+            var fullLight = VoxelColor.White();
+            var noLight = VoxelColor.Black();
+
             _sunNodes.Clear();
 
             // Clear all light in one call - much faster than individual writes.
             System.Array.Clear(sunLight, 0, sunLight.Length);
 
-            var fullLight = new VoxelColor(255, 255, 255, 0);
+            for (var z = 0; z < d.x; z++) {
+                for (var x = 0; x < d.x; x++) {
+                    // Set full sunlight for all voxels above heightmap, anything below is zeroed for re-propagation.
+                    // Addresses colored glass placed at tunnel-like features.
+                    for (var y = 0; y < d.y; y++) {
+                        var hi = VoxelUtility.HeightIndex(x, z, d.x);
+                        var heightData = heightMap[hi];
+                        sunLight[VoxelUtility.VoxelIndex(x, y, z, d)] = y > heightData.Value
+                            ? fullLight
+                            : noLight;
+                    }
+                }
+            }
 
             // For each column, set sunlight above heightmap and find cavern entry points.
             for (var z = 0; z < d.x; z++) {
                 for (var x = 0; x < d.x; x++) {
                     var hi = VoxelUtility.HeightIndex(x, z, d.x);
-                    ref var heightData = ref heightMap[hi];
+                    var heightData = heightMap[hi];
                     var height = heightData.Value;
                     heightData.Dirty = false;
 
@@ -296,10 +324,9 @@ namespace VektorVoxels.Lighting {
                         if (nh > regionMax) regionMax = nh;
                     }
 
-                    // Set full sunlight for all voxels above heightmap.
-                    for (var y = height + 1; y < d.y; y++) {
-                        sunLight[VoxelUtility.VoxelIndex(x, y, z, d)] = fullLight;
-                    }
+                    //for (var y = height + 1; y < d.y; y++) {
+                       // sunLight[VoxelUtility.VoxelIndex(x, y, z, d)] = fullLight;
+                    //}
 
                     // Skip if column is at world top (no air above).
                     if (height >= d.y - 1) continue;
@@ -405,7 +432,7 @@ namespace VektorVoxels.Lighting {
                     for (var x = 0; x < d.x; x++) {
                         var idx = VoxelUtility.VoxelIndex(x, y, z, d);
                         var voxel = voxelData[idx];
-                        blockLight[idx] = VoxelColor.Clear();
+                        blockLight[idx] = VoxelColor.Black();
 
                         if ((voxel.Flags & VoxelFlags.LightSource) == 0) continue;
 

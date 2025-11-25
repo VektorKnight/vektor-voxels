@@ -118,7 +118,7 @@ namespace VektorVoxels.Voxels {
                 "grass", "Grass",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new [] {
                     new Vector2(1, 0),
                     new Vector2(1, 0),
@@ -132,42 +132,42 @@ namespace VektorVoxels.Voxels {
                 "dirt", "Dirt",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new Vector2(2, 0)
             ),
             new VoxelDefinition(
                 "gravel", "Gravel",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new Vector2(3, 0)
             ),
             new VoxelDefinition(
                 "sand", "Sand",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new Vector2(4, 0)
             ),
             new VoxelDefinition(
                 "stone", "Stone",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new Vector2(5, 0)
             ),
             new VoxelDefinition(
                 "bedrock", "Bedrock",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new Vector2(6, 0)
             ),
             new VoxelDefinition(
                 "cobblestone", "Cobblestone",
                 VoxelFlags.None,
                 FacingDirection.North,
-                VoxelColor.Clear(),
+                VoxelColor.Black(),
                 new Vector2(0, 1)
             ),
             new VoxelDefinition(

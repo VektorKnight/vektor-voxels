@@ -24,7 +24,7 @@ namespace VektorVoxels.Voxels {
         /// Not considered for meshing, collision, or anything else really.
         /// </summary>
         private static readonly VoxelData NULL_VOXEL = new VoxelData(0, VoxelFlags.NoCollision, 0, VoxelColor.White());
-        public static VoxelData Null() => NULL_VOXEL;
+        public static VoxelData Empty() => NULL_VOXEL;
 
         public VoxelData(ushort id, VoxelFlags flags, FacingDirection orientation, VoxelColor colorData) {
             Id = id;
@@ -49,6 +49,21 @@ namespace VektorVoxels.Voxels {
         [Pure]
         public override bool Equals(object obj) {
             return obj is VoxelData other && Equals(other);
+        }
+
+        [Pure]
+        public bool IsEmpty() {
+            return Id == 0;
+        }
+
+        [Pure]
+        public bool IsOpaque() {
+            return !IsEmpty() && (Flags & VoxelFlags.AlphaRender) == 0;
+        }
+        
+        [Pure]
+        public bool IsLightSource() {
+            return !IsEmpty() && (Flags.HasFlag(VoxelFlags.LightSource));
         }
         
         [Pure]

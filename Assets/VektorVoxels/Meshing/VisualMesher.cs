@@ -81,7 +81,7 @@ namespace VektorVoxels.Meshing {
                 1 => MeshUtility.CalculateVertexLight(center, neighbors[6].Sun, neighbors[7].Sun, neighbors[0].Sun),
                 2 => MeshUtility.CalculateVertexLight(center, neighbors[0].Sun, neighbors[1].Sun, neighbors[2].Sun),
                 3 => MeshUtility.CalculateVertexLight(center, neighbors[2].Sun, neighbors[3].Sun, neighbors[4].Sun),
-                _ => VoxelColor.Clear().ToColor32()
+                _ => VoxelColor.Black().ToColor32()
             };
         }
 
@@ -95,7 +95,7 @@ namespace VektorVoxels.Meshing {
                 1 => MeshUtility.CalculateVertexLight(center, neighbors[6].Block, neighbors[7].Block, neighbors[0].Block),
                 2 => MeshUtility.CalculateVertexLight(center, neighbors[0].Block, neighbors[1].Block, neighbors[2].Block),
                 3 => MeshUtility.CalculateVertexLight(center, neighbors[2].Block, neighbors[3].Block, neighbors[4].Block),
-                _ => VoxelColor.Clear().ToColor32()
+                _ => VoxelColor.Black().ToColor32()
             };
         }
 

@@ -126,7 +126,7 @@ namespace VektorVoxels.Persistence {
                 // Get voxel data from definition (restores flags and color)
                 VoxelData voxel;
                 if (id == 0) {
-                    voxel = Voxels.VoxelData.Null();
+                    voxel = Voxels.VoxelData.Empty();
                 }
                 else {
                     var def = VoxelTable.GetVoxelDefinition(id);

@@ -6,10 +6,49 @@ Track active work for continuity across sessions.
 
 ## Active Work
 
-### Codebase Revival & Cleanup
+### Chunk Pipeline Refactor
 **Status:** active
+**Started:** 2025-11-25
+**Updated:** 2025-11-25
+
+**Goals:**
+1. Simplify chunk pipeline architecture
+2. Remove redundant lighting pass
+3. Fix synchronization anti-patterns
+4. Improve robustness (retry on failure instead of crash)
+5. Reduce event subscription overhead
+
+**Current State:**
+Comprehensive pipeline audit completed. Critical light propagation bug FIXED (lightmap wasn't being updated during propagation). VoxelColor struct enhanced with attenuation LUT and helper methods. Refactoring plan created at `docs/chunk_pipeline_refactor.md`.
+
+**Critical Fix (2025-11-25):**
+Root cause of exponential work in light propagation: `lightMap[cpi] = VoxelColor.Max(...)` was COMMENTED OUT. Every visit to a position saw original dark value, causing infinite revisits via multiple paths.
+
+**VoxelColor Improvements (2025-11-25):**
+- Added 4-parameter `Decompose()` (LightMapper compatibility)
+- Fixed `Compare` bug (renamed to `AnyChannelGreater`)
+- Added `Attenuate()` with pre-computed LUT
+- Added `Tint()` and `AttenuateAndTint()` for translucent blocks
+- Added `IsBelowThreshold`, `IsBlack`, `DominatesOrEquals` helpers
+- Moved attenuation constants to VoxelColor
+
+**Next Session Entry Point:**
+Begin Phase 1 of chunk pipeline refactor per `docs/chunk_pipeline_refactor.md`
+
+**Phases:**
+- [x] Phase 0: Audit and document pipeline issues
+- [ ] Phase 1: Low-risk fixes (retry logic, job counter re-check)
+- [ ] Phase 2: Remove third lighting pass
+- [ ] Phase 3: Consolidate volatile flags
+- [ ] Phase 4: Simplify neighbor synchronization
+- [ ] Phase 5: (Optional) Central event bus
+
+---
+
+### Codebase Revival & Cleanup (Previous)
+**Status:** paused (blocked by pipeline refactor)
 **Started:** 2025-11-21
-**Updated:** 2025-11-22
+**Updated:** 2025-11-25
 
 **Goals:**
 1. Fast multi-threaded chunk generation/meshing/lighting
@@ -17,26 +56,11 @@ Track active work for continuity across sessions.
 3. Fix PhysX collision stuttering
 4. Polish for GitHub showcase
 
-**Current State:**
-Voxel update latency issue RESOLVED. Ready to continue with Phase 3 (PhysX collision stuttering).
-
-**Latency Fix (2025-11-22) - RESOLVED:**
-Root cause was exponential redundant work in `LightMapper.PropagateLightNodes()`. When a position was reached via multiple paths, each node would propagate outward even if it didn't improve the lightmap. Fixed by adding early exit check before propagation.
-
-Additional optimizations applied:
-- MeshJob callbacks changed from Throttled to Default queue (immediate processing)
-- Smart neighbor updates: only mark affected neighbors based on voxel position/type
-- Reduced WaitingForNeighbors polling from 10 frames to 2 frames
-
-**Next Session Entry Point:**
-1. **Phase 3** - PhysX collision stuttering fix
-2. **Phase 4** - Polish for showcase
-
 **Phases:**
 - [x] Phase 1: Critical fixes, performance wins, code cleanup
 - [x] Phase 2: Upgrade lighting to 8-bit per channel
 - [x] Phase 2.5: Save system implementation
-- [ ] Phase 3: Fix PhysX collision
+- [ ] Phase 3: Fix PhysX collision (after pipeline refactor)
 - [ ] Phase 4: Polish for showcase
 
 **Save System (2025-11-22):**

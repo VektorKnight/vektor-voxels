@@ -1,12 +1,8 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.Profiling;
 using UnityEngine.Rendering;
-using VektorVoxels.Config;
 using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
@@ -163,7 +159,7 @@ namespace VektorVoxels.Chunks {
             
             // Set every voxel to air initially.
             for (var i = 0; i < _voxelData.Length; i++) {
-                _voxelData[i] = Voxels.VoxelData.Null();
+                _voxelData[i] = Voxels.VoxelData.Empty();
             }
             
             // Job completion callbacks.
@@ -659,6 +655,7 @@ namespace VektorVoxels.Chunks {
         /// <summary>
         /// Determines which neighbor indices need updating based on voxel position and type.
         /// Returns a bitmask where bit i indicates neighbor i needs updating.
+        /// TODO: Investigate if this is still causing propagation errors.
         /// </summary>
         private int GetAffectedNeighbors(Vector3Int localPos, VoxelData data) {
             int affected = 0;
@@ -670,8 +667,8 @@ namespace VektorVoxels.Chunks {
             if (localPos.z == 0) affected |= (1 << 2);                    // South
             if (localPos.z == chunkSize.x - 1) affected |= (1 << 0);      // North
 
-            // Light sources and removed voxels affect all cardinal neighbors for light propagation
-            bool affectsLight = data.IsNull || (data.Flags & VoxelFlags.LightSource) != 0;
+            // Lighting is affected if a voxel is removed, is a light source, or is translucent.
+            bool affectsLight = data.IsEmpty() || data.IsLightSource() || !data.IsOpaque();
             if (affectsLight) {
                 affected |= 0xF; // All 4 cardinals (bits 0-3)
             }

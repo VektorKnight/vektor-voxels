@@ -254,7 +254,7 @@ namespace VektorVoxels.Interaction {
                 _lookingAtVoxel = voxelData.Id > 0 ? VoxelTable.GetVoxelDefinition(voxelData.Id) : null;
 
                 if (_wantsBreak) {
-                    VoxelWorld.Instance.TryQueueVoxelUpdate(result.World, VoxelData.Null());
+                    VoxelWorld.Instance.TryQueueVoxelUpdate(result.World, VoxelData.Empty());
                     _wantsBreak = false;
                 }
 

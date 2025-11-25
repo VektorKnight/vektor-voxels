@@ -1,7 +1,7 @@
 # Vektor Voxels - Architectural Knowledge
 
-<!-- Last Updated: 2025-11-22 -->
-<!-- Source: Code audit, threading improvements, memory optimizations -->
+<!-- Last Updated: 2025-11-25 -->
+<!-- Source: Code audit, threading improvements, memory optimizations, pipeline audit -->
 
 Critical knowledge for understanding and modifying the codebase.
 
@@ -89,8 +89,10 @@ Uninitialized → TerrainGeneration → Lighting → WaitingForNeighbors → Mes
 ### Three-Pass Architecture
 
 1. **First pass**: Initialize sun/block light, propagate within chunk
-2. **Second pass**: Propagate light spilling from neighbors (N/E boundaries)
-3. **Third pass**: Propagate light spilling from neighbors (S/W boundaries)
+2. **Second pass**: Propagate light spilling from neighbors
+3. **Third pass**: Propagate light spilling from neighbors (redundant - see Known Issues)
+
+**Note:** Passes 2 and 3 are identical. This is likely unnecessary with proper propagation.
 
 ### Propagation Algorithm
 
@@ -99,10 +101,38 @@ BFS flood-fill using stacks (`_sunNodes`, `_blockNodes`):
 - Apply voxel tint from `ColorData` as pass-through multiplier (255 = full pass, 0 = block)
 - Stop when all RGB channels ≤ threshold (16)
 - Reject backwards propagation (node light < existing light)
+- **CRITICAL**: Must update lightmap immediately after improving a position to prevent exponential revisits
 
 **Light format:** `VoxelColor` with RGB565 (16-bit total: 5/6/5 bits per channel)
 
-**Source:** `Lighting/LightMapper.cs:186-256`
+**Source:** `Lighting/LightMapper.cs:183-295`
+
+### VoxelColor Struct [VERIFIED, HIGH]
+
+`VoxelColor` is the unified color type for lighting, emission, and tinting:
+
+**Storage:** RGB565 (16-bit packed)
+- R: 5 bits (32 levels)
+- G: 6 bits (64 levels)
+- B: 5 bits (32 levels)
+
+**API:** 0-255 range for compatibility, quantized on storage
+
+**Key methods:**
+- `Attenuate()` - Single-step attenuation via pre-computed LUT
+- `Tint(color)` - Apply color filter for translucent blocks
+- `AttenuateAndTint(color)` - Combined operation (efficient)
+- `IsBelowThreshold` - Check if all channels ≤ 16
+- `DominatesOrEquals(other)` - Check if this light dominates another
+
+**Constants:**
+- `ATTENUATION_MULTIPLIER = 220` (~0.859x per step)
+- `LIGHT_THRESHOLD = 16` (propagation cutoff)
+- `MAX_LIGHT = 255`
+
+**Attenuation math:** `255 * 0.859^15 ≈ 26`, giving ~15 propagation steps
+
+**Source:** `Lighting/VoxelColor.cs`
 
 ### Sun vs Block Light
 
@@ -204,12 +234,26 @@ Set true when job is dispatched, false on completion. Prevents overlapping jobs 
 
 ## Known Critical Issues [VERIFIED, HIGH]
 
-### Fixed Issues (2025-11-21)
+### Fixed Issues (2025-11-25)
 
 1. ~~**LightMapper neighbor locks** - Blocking acquisition without timeout~~ → Now uses `TryEnterReadLock()` with timeout
 2. ~~**MeshJob exception path** - Lock not released~~ → Already had proper try-finally
 3. ~~**Boolean flags without volatile**~~ → State flags now marked `volatile`
 4. ~~**Frame-by-frame neighbor polling**~~ → Now event-driven with fallback polling
+5. ~~**Light propagation exponential work** - Lightmap not updated during propagation~~ → Fixed: lightmap now written immediately when node improves it
+6. ~~**VoxelColor.Compare bug** - Compared R channel twice instead of B~~ → Fixed: renamed to `AnyChannelGreater` with correct logic
+
+### Pipeline Architecture Issues [VERIFIED, HIGH]
+
+Issues identified during 2025-11-25 audit (see `docs/chunk_pipeline_refactor.md`):
+
+1. **Three lighting passes unnecessary** - Passes 2 and 3 are identical; likely only 2 needed
+2. **Mixed push/pull synchronization** - Events + polling fallback creates race conditions
+3. **Volatile flags non-atomic** - Multiple volatiles read in combination without proper sync
+4. **Lock timeout = app exit** - Should retry instead of crashing
+5. **Event subscription overhead** - N² event connections between chunks
+6. **Aborted jobs don't retry** - Chunk stuck in invalid state on failure
+7. **Job counter timing** - Should re-check after acquiring lock
 
 ### Remaining Deadlock Risks
 
@@ -231,7 +275,7 @@ Set true when job is dispatched, false on completion. Prevents overlapping jobs 
 3. Cache-unfriendly loop order in meshing
 4. **Improved:** Neighbor polling reduced from every-frame to every 10 frames (events handle most cases)
 
-**Source:** `docs/initial_report.md` for full details
+**Source:** `docs/initial_report.md` for full details, `docs/chunk_pipeline_refactor.md` for refactoring plan
 
 ---
 
