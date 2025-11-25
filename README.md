@@ -28,21 +28,20 @@ The mesher generates efficient geometry with per-side textures, block orientatio
 
 ## Project Status
 
-This project has reached most of the goals I originally set out on and is now at a good stopping point. I may still pop in here and there whenever curiosity calls.
-- Cubic voxel meshing with per-side textures and smooth lighting
-- Full RGB light propagation with emission and color tinting
-- Concurrent chunk processing without blocking the main thread
+I have decided to continue development on this as time and interest allows. The goal is not to produce a production-worthy game that would by any means try to compete with Minecraft or potentially Hytale. The core of this project is still research and general passion. The secondary goal is a robust example of a voxel engine implemented in Unity.
 
-If you're exploring voxel engine development or looking for reference implementations of these algorithms, feel free to dig through the code.
+Note that AI development tools are being used in this project. This is partially responsible for the project being revived at all. Proper consideration is being given around optimal usage and auditing work done by the agent. Degradations in code quality, architecture, or documentation are not expected.
 
 ## Known Limitations
 
-- No save system to support persistence
-- The player controller is very basic
+- The world can be saved but is still limited in size as a robust virtual-memory, cache, and streaming system for chunks has yet to be implemented (pain and suffering).
+- The player controller is very basic but functional.
 - The extremely minimal voxel collision means normal Unity objects will not respond to the world.
-  - This was necessary to get around PhysXn stuttering when loading in new chunks rapidly.
-  - May explore re-integration in the future.
-- Greedy meshing is implemented but does not function with smooth lighting.
+  - This was necessary to get around PhysX stuttering when loading in new chunks rapidly.
+  - May explore re-integration in the future or an alternative.
+- Greedy meshing is implemented but does not function with smooth lighting and may be fundamentally incompatible without moving lighting to the GPU somehow.
+- There is currently no way to customize settings of any kind including input bindings or mouse sensitivity.
+  - Priority is somewhat low on this as the focus for now is solidifying the foundational systems.
 
 ## Architecture Overview
 
