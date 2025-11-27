@@ -371,27 +371,33 @@ namespace VektorVoxels.World {
         /// Clears all loaded chunks, forcing them to reload.
         /// </summary>
         private void ClearAllChunks() {
-            // Destroy all chunk GameObjects
-            foreach (var chunk in _loadedChunks) {
-                if (chunk != null) {
-                    Destroy(chunk.gameObject);
-                }
-            }
+            // Complete any pending terrain generation jobs first.
+            // This ensures callbacks fire before chunks are destroyed.
+            _terrainScheduler?.CompleteAll();
 
-            // Clear tracking collections
-            _loadedChunks.Clear();
+            // Clear tracking collections (prevents callbacks from re-queuing)
             _loadQueue.Clear();
             _loadQueueSet.Clear();
             _saveQueue.Clear();
             _saveQueueSet.Clear();
             _lightingQueue.Clear();
 
-            // Clear the chunk array
+            // Clear the chunk array BEFORE destroying GameObjects.
+            // This ensures any deferred callbacks find null and exit early.
             for (var x = 0; x < _maxChunks.x; x++) {
                 for (var z = 0; z < _maxChunks.y; z++) {
                     _chunks[x, z] = null;
                 }
             }
+
+            // Now destroy all chunk GameObjects
+            foreach (var chunk in _loadedChunks) {
+                if (chunk != null) {
+                    Destroy(chunk.gameObject);
+                }
+            }
+
+            _loadedChunks.Clear();
         }
 
         /// <summary>
@@ -679,8 +685,8 @@ namespace VektorVoxels.World {
             }
             
 
-            // F6: Toggle two-pass lighting (experimental ~33% faster)
-            if (UnityEngine.Input.GetKeyDown(KeyCode.F6)) {
+            // F3: Toggle two-pass lighting (experimental ~33% faster)
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F3)) {
                 if (_lightingScheduler != null) {
                     _lightingScheduler.UseTwoPassLighting = !_lightingScheduler.UseTwoPassLighting;
                     Debug.Log($"[VoxelWorld] Two-pass lighting: {_lightingScheduler.UseTwoPassLighting}");

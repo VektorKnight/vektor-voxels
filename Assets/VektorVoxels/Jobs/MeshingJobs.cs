@@ -399,6 +399,7 @@ namespace VektorVoxels.Jobs {
 
         /// <summary>
         /// Samples light at a position, handling neighbor chunk boundaries.
+        /// When neighbor data isn't available, uses edge light from current chunk for continuity.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SampleLight(int3 pos, out VoxelColor sun, out VoxelColor block) {
@@ -462,9 +463,16 @@ namespace VektorVoxels.Jobs {
                 }
             }
 
-            // No neighbor data available - return black
-            sun = new VoxelColor(0, 0, 0);
-            block = new VoxelColor(0, 0, 0);
+            // No neighbor data available - use edge light from current chunk for continuity.
+            // Clamp position to valid range and sample from our border.
+            var clampedPos = new int3(
+                math.clamp(pos.x, 0, MeshConstants.WIDTH - 1),
+                pos.y,
+                math.clamp(pos.z, 0, MeshConstants.DEPTH - 1)
+            );
+            var clampedIdx = MeshConstants.VoxelIndex(clampedPos);
+            sun = SunLight[clampedIdx];
+            block = BlockLight[clampedIdx];
         }
     }
 }

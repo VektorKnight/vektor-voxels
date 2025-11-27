@@ -249,6 +249,9 @@ namespace VektorVoxels.Chunks {
             // Sync loaded data to native arrays.
             SyncVoxelsToNativeData();
 
+            // Mark as waiting for lighting (coordinated path will handle state transitions)
+            _state = ChunkState.Lighting;
+
             // Use coordinated lighting through VoxelWorld.
             VoxelWorld.Instance.QueueChunkForLighting(this);
         }

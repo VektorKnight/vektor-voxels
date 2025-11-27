@@ -112,14 +112,17 @@ namespace VektorVoxels.Jobs {
                 SunLight[vi] = NoLight;
             }
 
-            // Check if surface block is translucent (glass) - place a seed for propagation
-            // The propagation system handles exit-tinting, so colored light will be correct
+            // Check if surface block is translucent and place seed above for entry-tinting
+            // Seed must be outside the glass so propagation enters it and applies tinting.
             int heightVi = VoxelIndex(x, height, z);
             var heightVoxel = Voxels[heightVi];
             if (!heightVoxel.IsEmpty() && (heightVoxel.Flags & VoxelFlags.AlphaRender) != 0) {
-                // Place seed at the glass position with full light
-                // Exit-tinting in propagation will color the light as it passes through
-                CavernSeeds.Enqueue(new LightNodeNative(x, height, z, FullLight));
+                int aboveY = height + 1;
+                if (aboveY < LightConstants.HEIGHT) {
+                    int aboveIdx = VoxelIndex(x, aboveY, z);
+                    SunLight[aboveIdx] = NoLight;
+                    CavernSeeds.Enqueue(new LightNodeNative(x, aboveY, z, FullLight));
+                }
             }
 
             // Find max height among cardinal neighbors for cavern detection
@@ -146,26 +149,31 @@ namespace VektorVoxels.Jobs {
 
             // Check for cavern openings from our surface up to regionMax
             for (int y = height + 1; y <= regionMax; y++) {
-                // Check 4 cardinal neighbors
-                CheckCavernOpening(x - 1, y, z, y, ref regionMax);
-                CheckCavernOpening(x + 1, y, z, y, ref regionMax);
-                CheckCavernOpening(x, y, z - 1, y, ref regionMax);
-                CheckCavernOpening(x, y, z + 1, y, ref regionMax);
+                // Check 4 cardinal neighbors, passing home coords for consistent seeding
+                CheckCavernOpening(x, z, x - 1, y, z);
+                CheckCavernOpening(x, z, x + 1, y, z);
+                CheckCavernOpening(x, z, x, y, z - 1);
+                CheckCavernOpening(x, z, x, y, z + 1);
             }
         }
 
-        private void CheckCavernOpening(int nx, int y, int nz, int currentY, ref int regionMax) {
-            // Bounds check
+        private void CheckCavernOpening(int homeX, int homeZ, int nx, int y, int nz) {
+            // Bounds check neighbor
             if (nx < 0 || nx >= LightConstants.WIDTH || nz < 0 || nz >= LightConstants.DEPTH) return;
 
             int neighborHeight = HeightMap[HeightIndex(nx, nz)].Value;
 
             // If this Y is below neighbor's surface, there's a cavern opening
-            if (currentY < neighborHeight) {
-                int neighborIdx = VoxelIndex(nx, currentY, nz);
-                // Only queue if air (not opaque)
+            if (y < neighborHeight) {
+                int neighborIdx = VoxelIndex(nx, y, nz);
+                // Only proceed if neighbor is non-opaque (air or translucent)
                 if (!Voxels[neighborIdx].IsOpaque()) {
-                    CavernSeeds.Enqueue(new LightNodeNative(nx, currentY, nz, FullLight));
+                    // Seed in OUR air column (not neighbor's position which might be glass)
+                    // Clear first to enable propagation, then seed
+                    // Propagation will flow into neighbor and apply entry-tinting if translucent
+                    int homeIdx = VoxelIndex(homeX, y, homeZ);
+                    SunLight[homeIdx] = NoLight;
+                    CavernSeeds.Enqueue(new LightNodeNative(homeX, y, homeZ, FullLight));
                 }
             }
         }

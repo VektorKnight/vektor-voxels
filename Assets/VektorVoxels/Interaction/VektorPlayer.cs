@@ -97,6 +97,9 @@ namespace VektorVoxels.Interaction {
             _crosshairTexture = new Texture2D(1, 1);
             _crosshairTexture.SetPixel(0, 0, Color.white);
             _crosshairTexture.Apply();
+
+            _wantsPlace = false;
+            _wantsBreak = false;
         }
 
         private void OnDestroy() {

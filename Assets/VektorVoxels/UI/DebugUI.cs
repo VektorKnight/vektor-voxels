@@ -50,8 +50,8 @@ namespace VektorVoxels.UI {
             var chunk = VoxelWorld.Instance.WorldToChunkPos(position);
             
             var lightingMode = VoxelWorld.Instance.LightingScheduler?.UseTwoPassLighting ?? false
-                ? "2-pass (F6)"
-                : "3-pass (F6)";
+                ? "2-pass (F3)"
+                : "3-pass (F3)";
 
             _upperLeft.text = $"{Application.productName} | {Application.version}\n" +
                               $"FPS: {1f / Time.deltaTime:n0}\n" +

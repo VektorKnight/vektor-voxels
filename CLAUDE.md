@@ -95,8 +95,8 @@ VektorVoxels
 
 ### Debug Keybinds
 
+- **F3** - Toggle two-pass lighting mode (experimental, ~33% faster)
 - **F5** - Force refresh all chunks (Minecraft-style lighting fix)
-- **F6** - Toggle two-pass lighting mode (experimental, ~33% faster)
 
 ### Minor Issues
 

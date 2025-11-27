@@ -24,13 +24,21 @@ Unity Jobs migration complete. Core pipeline functional. Ghost light bug fix imp
 **Key Decisions (this session):**
 - **Stabilize before experimenting** - GPU lightmaps discussed but deferred. Fix current bugs first, then consider architectural changes.
 - **F5 refresh added** - Minecraft-style workaround for lighting bugs. Press F5 to force re-light all chunks.
-- **F6 toggle added** - Switch between 2-pass and 3-pass lighting for testing.
+- **F3 toggle added** - Switch between 2-pass and 3-pass lighting for testing (moved from F6).
 - **Project is a research sandbox** - Updated CLAUDE.md to reflect ongoing exploration rather than static reference.
 
 **Fixes Implemented (this session):**
 - [x] Ghost light bug (part 1) - Root cause was NOT in `LightRemovalJob` (which is dead code). The actual issue: light can propagate ~30 blocks (spanning 2 chunks), but only 1-hop neighbors were queued for relighting. Fix: `UpdateAffectedNeighbors` now queues 2-hop cardinal neighbors AND diagonal neighbors for light-affecting changes. Up to 13 chunks can be queued per light change (HashSet dedupes).
 - [x] Ghost light bug (part 2) - Placing an opaque block to close a hole wasn't triggering extended neighbor queueing. The check only looked at NEW voxel data (`data.IsEmpty() || !data.IsOpaque()`), missing the case where OLD voxel was transparent. Fix: `GetAffectedNeighbors` now takes `oldData` parameter and checks both old and new voxel states.
-- [x] Two-pass lighting toggle - Added `UseTwoPassLighting` flag to `LightingJobScheduler`. F6 toggles at runtime. Pass 3 is only needed when light from multiple sources converges through an intermediate chunk.
+- [x] Two-pass lighting toggle - Added `UseTwoPassLighting` flag to `LightingJobScheduler`. F3 toggles at runtime (moved from F6 due to GUI conflict). Pass 3 is only needed when light from multiple sources converges through an intermediate chunk.
+- [x] World loading bugs - Two issues fixed:
+  1. `InitializeWithData` never set `_state` after initialization - chunk stayed in `Uninitialized` state. Fixed by setting `_state = ChunkState.Lighting` before queuing for coordinated lighting.
+  2. `ClearAllChunks` didn't complete pending terrain jobs before destroying chunks. Added `_terrainScheduler?.CompleteAll()` call and reordered operations to clear arrays before destroying GameObjects.
+- [x] Smooth lighting dark seams - `SampleLight` in `MeshingJobs.cs` returned black when neighbor data unavailable. Fix: use clamped edge light from current chunk for visual continuity.
+- [x] Sunlight entry-tinting for translucent blocks - Two places in `SunlightColumnJob` were seeding INSIDE glass with full white light, bypassing tint:
+  1. **Surface glass** (line ~119): Seed was placed at heightmap position (inside glass). Fix: place seed ABOVE glass (in air), clear it first to enable propagation, let entry-tinting apply.
+  2. **Cavern opening glass** (`CheckCavernOpening`): Seed was placed at neighbor position (might be glass). Fix: always seed in home air column, let propagation flow into neighbor with entry-tinting.
+  Key insight: seeds should always be in air, propagation handles tinting on entry.
 
 **Architectural Discussion (2025-11-27):**
 Discussed GPU lightmaps (upload light as 3D texture, sample in shader instead of baking to vertices). Benefits: decouples lighting from meshing, enables dynamic lighting, smaller vertices. Deferred because:
@@ -46,9 +54,13 @@ Also discussed "update propagation wave" with explicit dependency graphs. Curren
 
 **Next Steps:**
 - [x] Fix ghost light bug - extended neighbor queueing to 2-hop + diagonals
-- [x] Add Pass 3 toggle - F6 switches between 2-pass and 3-pass
+- [x] Add Pass 3 toggle - F3 switches between 2-pass and 3-pass
+- [x] Fix smooth lighting seams at chunk boundaries
+- [x] Fix sunlight entry-tinting for translucent blocks
 - [ ] Test two-pass mode for visual artifacts with multiple light sources
-- [ ] Verify boundary edge cases with stress testing
+- [ ] Investigate intermittent null-reference on world load
+- [ ] Fix UI click bleed-through after world load dialog
+- [ ] Consider diagonal neighbor support for T-intersection seams (low priority)
 
 ---
 
