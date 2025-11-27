@@ -66,6 +66,19 @@ Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing 
   - Now reads from `ChunkDataStore` NativeArrays (with fallback to legacy managed array)
   - `OnApplicationQuit` flushes queue synchronously
   - Modified files: `WorldPersistence.cs`, `VoxelWorld.cs`
+- [x] Fix: Cross-chunk lighting race condition on voxel modification (initial attempt)
+  - Initial fix was to reset neighbor._lightPass, but hybrid system was fundamentally flawed
+- [x] MAJOR: Coordinated lighting system rearchitecture (VERIFIED WORKING)
+  - Removed hybrid Unity Jobs + legacy threading race conditions
+  - New architecture: VoxelWorld orchestrates all lighting in coordinated passes
+  - All chunks complete Pass N before any starts Pass N+1
+  - New files/changes:
+    - `LightingJobs.cs`: Added `BorderSeedJob` for cross-chunk border propagation
+    - `LightingJobScheduler.cs`: Added `ExecuteFullLighting()`, `ExecuteBorderPass()`
+    - `VoxelWorld.cs`: Added `_lightingQueue`, `QueueChunkForLighting()`, `ProcessLightingQueue()`
+    - `Chunk.cs`: `OnGenerationPassComplete()`, `Reload()`, `UpdateAffectedNeighbors()` now use coordinated path
+    - Added `QueueMeshPassFromWorld()` for VoxelWorld to trigger meshing after lighting
+  - Fix: Pass placeholder arrays for missing neighbors (Unity Jobs validates all arrays at schedule time)
 
 **Previous Session (2025-11-25):**
 - [x] Phase 1 of old refactor plan: Retry logic added to GenerationJob, LightJob, MeshJob
@@ -76,12 +89,13 @@ Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing 
 **Known Bugs (to be fixed by rearchitecture):**
 - Light removal doesn't cascade to neighbors (ghost light remains)
 - ~~Mystery multi-second hitch~~ - FIXED: Was GC from SaveChunkAsync allocating per-chunk
+- ~~Cross-chunk lighting breaks after modification~~ - FIXED: Coordinated lighting system eliminates race conditions
 
 **Next Session Entry Point:**
-Phase 6 complete (GC fix verified). Remaining work:
-- Option A: Extend lighting jobs to handle neighbor propagation (phases 2-3 of lighting)
-- Option B: Add async job scheduling with batched completion handling (Phase 5)
-- Option C: Fix light removal cascade bug (ghost light when removing light sources)
+Coordinated lighting system complete. Remaining work:
+- Option A: Remove legacy threading system (GlobalThreadPool, VektorJob, etc.) - code is unused now
+- Option B: Fix light removal cascade bug (ghost light when removing light sources)
+- Option C: Further polish and optimization
 
 **New Files This Session:**
 - `Assets/VektorVoxels/Data/ChunkData.cs` - Native chunk data struct

@@ -844,7 +844,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f4b119522494d298acf1108a644482c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _maxChunks: {x: 64, y: 64}
+  _maxChunks: {x: 16, y: 16}
   _useSmoothLighting: 1
   _chunkPrefab: {fileID: 3355102642434385408, guid: b892d8b0ef44ad844afcb94d26bfc045, type: 3}
   _worldType: 1
@@ -852,6 +852,9 @@ MonoBehaviour:
   _viewDistance: 16
   _loadTransform: {fileID: 1494866693}
   _chunksPerTick: 8
+  _useUnityJobsTerrain: 1
+  _useUnityJobsLighting: 1
+  _useUnityJobsMeshing: 1
 --- !u!4 &1141006912
 Transform:
   m_ObjectHideFlags: 0

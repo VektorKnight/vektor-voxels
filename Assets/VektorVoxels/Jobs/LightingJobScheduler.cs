@@ -235,6 +235,143 @@ namespace VektorVoxels.Jobs {
         }
 
         /// <summary>
+        /// Executes full lighting for multiple chunks in coordinated passes.
+        /// This eliminates race conditions by ensuring all chunks complete each pass
+        /// before any chunk starts the next pass.
+        /// </summary>
+        /// <param name="chunkIds">List of chunk IDs needing lighting</param>
+        public void ExecuteFullLighting(List<int2> chunkIds) {
+            if (!_initialized || chunkIds == null || chunkIds.Count == 0) return;
+
+            // Pass 1: Internal lighting for all chunks
+            foreach (var chunkId in chunkIds) {
+                ExecuteFirstPass(new Vector2Int(chunkId.x, chunkId.y));
+            }
+
+            // Pass 2: Border propagation (reads pass 1 neighbor data)
+            foreach (var chunkId in chunkIds) {
+                ExecuteBorderPass(chunkId);
+            }
+
+            // Pass 3: Border propagation again (convergence)
+            foreach (var chunkId in chunkIds) {
+                ExecuteBorderPass(chunkId);
+            }
+
+            // Sync all to managed arrays
+            foreach (var chunkId in chunkIds) {
+                SyncToManagedChunk(new Vector2Int(chunkId.x, chunkId.y));
+            }
+        }
+
+        /// <summary>
+        /// Executes border propagation pass for a single chunk.
+        /// Reads light values from neighbor borders and propagates into this chunk.
+        /// </summary>
+        private void ExecuteBorderPass(int2 chunkId) {
+            var store = VoxelWorld.Instance?.ChunkDataStore;
+            if (store == null || store.IsDisposed) return;
+            if (!store.IsAllocated(chunkId)) return;
+
+            var chunkData = store.GetChunk(chunkId);
+
+            // Get neighbor flags and data
+            var neighborFlags = GetNeighborFlags(chunkId, store);
+            if (neighborFlags == NeighborFlagsNative.None) return;
+
+            // Process sunlight borders
+            ExecuteBorderPassForLightType(chunkId, chunkData, store, neighborFlags, true);
+
+            // Process block light borders
+            ExecuteBorderPassForLightType(chunkId, chunkData, store, neighborFlags, false);
+
+            // Update chunk in store
+            store.UpdateChunk(chunkId, chunkData);
+        }
+
+        private void ExecuteBorderPassForLightType(int2 chunkId, ChunkData chunkData,
+            ChunkDataStore store, NeighborFlagsNative neighborFlags, bool isSunlight) {
+
+            _propagationQueue.Clear();
+
+            var currentLight = isSunlight ? chunkData.SunLight : chunkData.BlockLight;
+
+            // Get neighbor light arrays. Use currentLight as placeholder for missing neighbors
+            // (the job checks flags before accessing, but Unity validates all arrays at schedule time).
+            var northLight = GetNeighborLightOrPlaceholder(chunkId, 0, 1, store, isSunlight, currentLight);
+            var eastLight = GetNeighborLightOrPlaceholder(chunkId, 1, 0, store, isSunlight, currentLight);
+            var southLight = GetNeighborLightOrPlaceholder(chunkId, 0, -1, store, isSunlight, currentLight);
+            var westLight = GetNeighborLightOrPlaceholder(chunkId, -1, 0, store, isSunlight, currentLight);
+
+            // Run border seed job
+            var borderJob = new BorderSeedJob {
+                Voxels = chunkData.Voxels,
+                CurrentLight = currentLight,
+                NeighborNorthLight = northLight,
+                NeighborEastLight = eastLight,
+                NeighborSouthLight = southLight,
+                NeighborWestLight = westLight,
+                NeighborFlags = neighborFlags,
+                Seeds = _propagationQueue
+            };
+            borderJob.Schedule().Complete();
+
+            // Propagate seeds if any were found
+            if (_propagationQueue.Count > 0) {
+                var propagateJob = new LightPropagationJob {
+                    Voxels = chunkData.Voxels,
+                    LightMap = currentLight,
+                    PropagationQueue = _propagationQueue
+                };
+                propagateJob.Schedule().Complete();
+            }
+        }
+
+        /// <summary>
+        /// Gets neighbor flags indicating which neighbors are available.
+        /// </summary>
+        private NeighborFlagsNative GetNeighborFlags(int2 chunkId, ChunkDataStore store) {
+            var flags = NeighborFlagsNative.None;
+
+            // North (+Z)
+            var northId = new int2(chunkId.x, chunkId.y + 1);
+            if (store.IsAllocated(northId)) flags |= NeighborFlagsNative.North;
+
+            // East (+X)
+            var eastId = new int2(chunkId.x + 1, chunkId.y);
+            if (store.IsAllocated(eastId)) flags |= NeighborFlagsNative.East;
+
+            // South (-Z)
+            var southId = new int2(chunkId.x, chunkId.y - 1);
+            if (store.IsAllocated(southId)) flags |= NeighborFlagsNative.South;
+
+            // West (-X)
+            var westId = new int2(chunkId.x - 1, chunkId.y);
+            if (store.IsAllocated(westId)) flags |= NeighborFlagsNative.West;
+
+            return flags;
+        }
+
+        /// <summary>
+        /// Gets a neighbor's light array, or a placeholder if not available.
+        /// Unity Jobs validates all arrays at schedule time, so we can't pass default/uninitialized arrays.
+        /// The placeholder won't be read because BorderSeedJob checks NeighborFlags first.
+        /// </summary>
+        private NativeArray<VoxelColor> GetNeighborLightOrPlaceholder(int2 chunkId, int dx, int dz,
+            ChunkDataStore store, bool isSunlight, NativeArray<VoxelColor> placeholder) {
+
+            var neighborId = new int2(chunkId.x + dx, chunkId.y + dz);
+
+            if (!store.IsAllocated(neighborId)) {
+                // Return placeholder - BorderSeedJob will skip via flags anyway
+                return placeholder;
+            }
+
+            var neighborData = store.GetChunk(neighborId);
+            return isSunlight ? neighborData.SunLight : neighborData.BlockLight;
+        }
+
+        /// <summary>
         /// Disposes all native containers.
         /// </summary>
         public void Dispose() {

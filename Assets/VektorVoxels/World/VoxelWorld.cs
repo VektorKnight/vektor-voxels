@@ -68,6 +68,10 @@ namespace VektorVoxels.World {
         private Queue<Chunk> _saveQueue;
         private HashSet<Chunk> _saveQueueSet;
 
+        // Coordinated lighting queue - chunks needing lighting are batched together.
+        private HashSet<Chunk> _lightingQueue;
+        private List<int2> _lightingBatch; // Reusable list for ExecuteFullLighting
+
         // Unity Jobs data store (Phase 1 migration).
         private ChunkDataStore _chunkDataStore;
 
@@ -307,6 +311,8 @@ namespace VektorVoxels.World {
             _persistence = new WorldPersistence();
             _saveQueue = new Queue<Chunk>();
             _saveQueueSet = new HashSet<Chunk>();
+            _lightingQueue = new HashSet<Chunk>();
+            _lightingBatch = new List<int2>();
 
             // Initialize Unity Jobs data store for migration.
             _chunkDataStore = new ChunkDataStore(new int2(_maxChunks.x, _maxChunks.y));
@@ -398,6 +404,7 @@ namespace VektorVoxels.World {
             _loadQueueSet.Clear();
             _saveQueue.Clear();
             _saveQueueSet.Clear();
+            _lightingQueue.Clear();
 
             // Clear the chunk array
             for (var x = 0; x < _maxChunks.x; x++) {
@@ -489,7 +496,49 @@ namespace VektorVoxels.World {
         public int GetSaveQueueCount() {
             return _saveQueue.Count;
         }
-        
+
+        /// <summary>
+        /// Queues a chunk for coordinated lighting.
+        /// All queued chunks will be processed together to ensure correct cross-chunk propagation.
+        /// </summary>
+        public void QueueChunkForLighting(Chunk chunk) {
+            if (chunk == null) return;
+            _lightingQueue.Add(chunk);
+        }
+
+        /// <summary>
+        /// Gets the number of chunks waiting for lighting.
+        /// </summary>
+        public int GetLightingQueueCount() {
+            return _lightingQueue.Count;
+        }
+
+        /// <summary>
+        /// Processes all chunks in the lighting queue using coordinated multi-pass lighting.
+        /// This ensures all chunks complete each pass before any starts the next,
+        /// eliminating race conditions in cross-chunk light propagation.
+        /// </summary>
+        private void ProcessLightingQueue() {
+            if (_lightingQueue.Count == 0) return;
+            if (_lightingScheduler == null || !_lightingScheduler.IsInitialized) return;
+
+            // Build batch list of chunk IDs
+            _lightingBatch.Clear();
+            foreach (var chunk in _lightingQueue) {
+                _lightingBatch.Add(new int2(chunk.ChunkId.x, chunk.ChunkId.y));
+            }
+
+            // Execute coordinated lighting for all chunks
+            _lightingScheduler.ExecuteFullLighting(_lightingBatch);
+
+            // Trigger meshing for all lit chunks
+            foreach (var chunk in _lightingQueue) {
+                chunk.QueueMeshPassFromWorld();
+            }
+
+            _lightingQueue.Clear();
+        }
+
         /// <summary>
         /// Used for sorting chunks.
         /// Might be called extremely often so component-wise math was used.
@@ -626,6 +675,9 @@ namespace VektorVoxels.World {
 
             // Update terrain job scheduler (processes completed jobs).
             _terrainScheduler?.Update();
+
+            // Process coordinated lighting queue.
+            ProcessLightingQueue();
 
             // Process save queue (one chunk per frame when ready).
             ProcessSaveQueue();

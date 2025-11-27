@@ -243,15 +243,15 @@ namespace VektorVoxels.Chunks {
             // Allocate native data for Unity Jobs migration.
             AllocateNativeData();
 
-            // Rebuild heightmap and queue lighting (skip generation)
+            // Rebuild heightmap (skip generation)
             RebuildHeightMap();
-            _isDirty = true;
             _lightPass = LightPass.None;
 
             // Sync loaded data to native arrays.
             SyncVoxelsToNativeData();
 
-            QueueLightPass(LightPass.First);
+            // Use coordinated lighting through VoxelWorld.
+            VoxelWorld.Instance.QueueChunkForLighting(this);
         }
 
         /// <summary>
@@ -386,7 +386,7 @@ namespace VektorVoxels.Chunks {
         
         /// <summary>
         /// Reloads this chunk.
-        /// Executes lighting passes 1-3 then a mesh pass.
+        /// Queues for coordinated lighting through VoxelWorld, which handles meshing after.
         /// Just re-enables the mesh renderer if not dirty or in a partial load state.
         /// </summary>
         private void Reload(bool force = false) {
@@ -395,11 +395,15 @@ namespace VektorVoxels.Chunks {
             _waitingForReload = false;
 
             if (force || _isDirty || _partialLoad) {
-                // First job in the chain so increment the counter.
+                // Increment the counter for job tracking.
                 Interlocked.Increment(ref _jobSetCounter);
-                _waitingForJob = true;
                 _lightPass = LightPass.None;
-                QueueLightPass(LightPass.First);
+                _isDirty = false;
+                _partialLoad = false;
+
+                // Use coordinated lighting through VoxelWorld.
+                // VoxelWorld will call QueueMeshPassFromWorld after lighting completes.
+                VoxelWorld.Instance.QueueChunkForLighting(this);
             }
             else {
                 _meshRenderer.forceRenderingOff = false;
@@ -533,7 +537,17 @@ namespace VektorVoxels.Chunks {
 
             _state = ChunkState.Meshing;
         }
-        
+
+        /// <summary>
+        /// Public method for VoxelWorld to trigger meshing after coordinated lighting.
+        /// This bypasses the normal state machine since lighting was handled externally.
+        /// </summary>
+        public void QueueMeshPassFromWorld() {
+            _waitingForJob = true;
+            _lightPass = LightPass.Third; // Mark as fully lit
+            QueueMeshPass();
+        }
+
         /// <summary>
         /// Called when the generation pass has completed..
         /// </summary>
@@ -541,9 +555,11 @@ namespace VektorVoxels.Chunks {
             // Sync generated terrain to native arrays.
             SyncVoxelsToNativeData();
 
-            _isDirty = true;
             _lightPass = LightPass.None;
-            QueueLightPass(LightPass.First);
+            _isDirty = false; // Clear to prevent duplicate queuing from OnLateTick
+
+            // Use coordinated lighting through VoxelWorld instead of independent passes.
+            VoxelWorld.Instance.QueueChunkForLighting(this);
         }
         
         /// <summary>
@@ -764,7 +780,7 @@ namespace VektorVoxels.Chunks {
         }
 
         /// <summary>
-        /// Marks specific neighbors for reload based on affected bitmask.
+        /// Queues affected neighbors for coordinated lighting based on affected bitmask.
         /// </summary>
         private void UpdateAffectedNeighbors(int affectedMask) {
             if (affectedMask == 0) return;
@@ -789,8 +805,10 @@ namespace VektorVoxels.Chunks {
                 }
 
                 var neighbor = VoxelWorld.Instance.Chunks[neighborId.x, neighborId.y];
-                neighbor._waitingForReload = true;
-                neighbor._isDirty = true;
+
+                // Queue neighbor for coordinated lighting directly.
+                // VoxelWorld's HashSet prevents duplicates if already queued.
+                VoxelWorld.Instance.QueueChunkForLighting(neighbor);
             }
         }
         
@@ -888,12 +906,14 @@ namespace VektorVoxels.Chunks {
                         affectedNeighbors |= GetAffectedNeighbors(update.Position, update.Data);
                     }
 
-                    _isDirty = true;
                     _persistenceDirty = true;
                     UpdateAffectedNeighbors(affectedNeighbors);
 
                     // Sync voxel changes to native arrays.
                     SyncVoxelsToNativeData();
+
+                    // Queue this chunk for coordinated lighting.
+                    VoxelWorld.Instance.QueueChunkForLighting(this);
                 }
             }
         }

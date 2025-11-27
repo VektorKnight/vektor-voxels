@@ -446,4 +446,167 @@ namespace VektorVoxels.Jobs {
                    pos.z >= 0 && pos.z < LightConstants.DEPTH;
         }
     }
+
+    /// <summary>
+    /// Flags indicating which neighbors are available for border propagation.
+    /// </summary>
+    [System.Flags]
+    public enum NeighborFlagsNative : byte {
+        None = 0,
+        North = 1 << 0,
+        East = 1 << 1,
+        South = 1 << 2,
+        West = 1 << 3,
+        All = North | East | South | West
+    }
+
+    /// <summary>
+    /// Job that reads light values from neighbor chunk borders and creates
+    /// propagation seeds where neighbor light exceeds current chunk light.
+    /// Used for cross-chunk light propagation.
+    /// </summary>
+    [BurstCompile]
+    public struct BorderSeedJob : IJob {
+        /// <summary>
+        /// Current chunk's voxel data for opacity checks.
+        /// </summary>
+        [ReadOnly] public NativeArray<VoxelData> Voxels;
+
+        /// <summary>
+        /// Current chunk's light map (sun or block).
+        /// </summary>
+        [ReadOnly] public NativeArray<VoxelColor> CurrentLight;
+
+        /// <summary>
+        /// North neighbor's light map (their Z=0 borders our Z=15).
+        /// </summary>
+        [ReadOnly] public NativeArray<VoxelColor> NeighborNorthLight;
+
+        /// <summary>
+        /// East neighbor's light map (their X=0 borders our X=15).
+        /// </summary>
+        [ReadOnly] public NativeArray<VoxelColor> NeighborEastLight;
+
+        /// <summary>
+        /// South neighbor's light map (their Z=15 borders our Z=0).
+        /// </summary>
+        [ReadOnly] public NativeArray<VoxelColor> NeighborSouthLight;
+
+        /// <summary>
+        /// West neighbor's light map (their X=15 borders our X=0).
+        /// </summary>
+        [ReadOnly] public NativeArray<VoxelColor> NeighborWestLight;
+
+        /// <summary>
+        /// Which neighbors are available.
+        /// </summary>
+        public NeighborFlagsNative NeighborFlags;
+
+        /// <summary>
+        /// Output queue for propagation seeds.
+        /// </summary>
+        public NativeQueue<LightNodeNative> Seeds;
+
+        private const int LAST_IDX = LightConstants.WIDTH - 1;
+
+        public void Execute() {
+            // Process each border
+            if ((NeighborFlags & NeighborFlagsNative.North) != 0) {
+                ProcessNorthBorder();
+            }
+            if ((NeighborFlags & NeighborFlagsNative.East) != 0) {
+                ProcessEastBorder();
+            }
+            if ((NeighborFlags & NeighborFlagsNative.South) != 0) {
+                ProcessSouthBorder();
+            }
+            if ((NeighborFlags & NeighborFlagsNative.West) != 0) {
+                ProcessWestBorder();
+            }
+        }
+
+        private void ProcessNorthBorder() {
+            // Our Z=15 border, neighbor's Z=0 border
+            for (int x = 0; x < LightConstants.WIDTH; x++) {
+                for (int y = 0; y < LightConstants.HEIGHT; y++) {
+                    int homeIdx = VoxelIndex(x, y, LAST_IDX);
+                    int neighborIdx = VoxelIndex(x, y, 0);
+
+                    ProcessBorderVoxel(homeIdx, NeighborNorthLight[neighborIdx], x, y, LAST_IDX);
+                }
+            }
+        }
+
+        private void ProcessEastBorder() {
+            // Our X=15 border, neighbor's X=0 border
+            for (int z = 0; z < LightConstants.DEPTH; z++) {
+                for (int y = 0; y < LightConstants.HEIGHT; y++) {
+                    int homeIdx = VoxelIndex(LAST_IDX, y, z);
+                    int neighborIdx = VoxelIndex(0, y, z);
+
+                    ProcessBorderVoxel(homeIdx, NeighborEastLight[neighborIdx], LAST_IDX, y, z);
+                }
+            }
+        }
+
+        private void ProcessSouthBorder() {
+            // Our Z=0 border, neighbor's Z=15 border
+            for (int x = 0; x < LightConstants.WIDTH; x++) {
+                for (int y = 0; y < LightConstants.HEIGHT; y++) {
+                    int homeIdx = VoxelIndex(x, y, 0);
+                    int neighborIdx = VoxelIndex(x, y, LAST_IDX);
+
+                    ProcessBorderVoxel(homeIdx, NeighborSouthLight[neighborIdx], x, y, 0);
+                }
+            }
+        }
+
+        private void ProcessWestBorder() {
+            // Our X=0 border, neighbor's X=15 border
+            for (int z = 0; z < LightConstants.DEPTH; z++) {
+                for (int y = 0; y < LightConstants.HEIGHT; y++) {
+                    int homeIdx = VoxelIndex(0, y, z);
+                    int neighborIdx = VoxelIndex(LAST_IDX, y, z);
+
+                    ProcessBorderVoxel(homeIdx, NeighborWestLight[neighborIdx], 0, y, z);
+                }
+            }
+        }
+
+        private void ProcessBorderVoxel(int homeIdx, VoxelColor neighborLight, int x, int y, int z) {
+            // Skip if home voxel is opaque
+            if (Voxels[homeIdx].IsOpaque()) return;
+
+            // Decompose light values
+            neighborLight.Decompose(out int nr, out int ng, out int nb, out _);
+
+            // Skip if neighbor light is below threshold
+            if (nr <= LightConstants.LIGHT_THRESHOLD &&
+                ng <= LightConstants.LIGHT_THRESHOLD &&
+                nb <= LightConstants.LIGHT_THRESHOLD) {
+                return;
+            }
+
+            var homeLight = CurrentLight[homeIdx];
+            homeLight.Decompose(out int hr, out int hg, out int hb, out _);
+
+            // Skip if home light is already >= neighbor on all channels
+            if (hr >= nr && hg >= ng && hb >= nb) return;
+
+            // Apply attenuation (light crosses one voxel boundary)
+            int dr = (nr * LightConstants.LIGHT_MULTIPLIER) >> 8;
+            int dg = (ng * LightConstants.LIGHT_MULTIPLIER) >> 8;
+            int db = (nb * LightConstants.LIGHT_MULTIPLIER) >> 8;
+
+            // Skip if attenuated to zero
+            if (dr + dg + db == 0) return;
+
+            // Create seed for propagation
+            Seeds.Enqueue(new LightNodeNative(x, y, z, new VoxelColor(dr, dg, db)));
+        }
+
+        private static int VoxelIndex(int x, int y, int z) {
+            return x + LightConstants.WIDTH * (y + LightConstants.HEIGHT * z);
+        }
+    }
 }
