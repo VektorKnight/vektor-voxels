@@ -18,9 +18,19 @@ namespace VektorVoxels.Persistence {
         private WorldSaveData _worldData;
         private VoxelIdRemapper _idRemapper;
 
+        // Pooled buffer for async saves - eliminates per-save allocations.
+        private VoxelData[] _saveBuffer;
+        private bool _saveInProgress;
+
         public WorldSaveData WorldData => _worldData;
         public bool IsWorldLoaded => _worldData != null;
         public string CurrentWorldName => _worldData?.Name;
+
+        /// <summary>
+        /// True if an async save is currently in progress.
+        /// Used for throttling saves to prevent GC spikes.
+        /// </summary>
+        public bool SaveInProgress => _saveInProgress;
 
         public WorldPersistence() {
             _worldsRoot = Path.Combine(Application.persistentDataPath, "worlds");
@@ -208,6 +218,7 @@ namespace VektorVoxels.Persistence {
 
         /// <summary>
         /// Saves chunk data to disk asynchronously via thread pool.
+        /// WARNING: This allocates a new array per call. Use SaveChunkAsyncPooled for GC-friendly saves.
         /// </summary>
         public void SaveChunkAsync(Vector2Int chunkPos, VoxelData[] voxelData, Action onComplete = null) {
             if (_chunksPath == null) return;
@@ -227,6 +238,96 @@ namespace VektorVoxels.Persistence {
                     Debug.LogError($"[WorldPersistence] Failed to save chunk {chunkPos} async: {e.Message}");
                 }
             }, onComplete);
+        }
+
+        /// <summary>
+        /// Saves chunk data using a pooled buffer to avoid GC allocations.
+        /// Only one pooled save can be in progress at a time.
+        /// Returns false if a save is already in progress.
+        /// </summary>
+        /// <param name="chunkPos">Chunk position to save.</param>
+        /// <param name="voxelData">Source voxel data (will be copied to internal buffer).</param>
+        /// <param name="onComplete">Callback when save completes.</param>
+        /// <returns>True if save was started, false if already busy.</returns>
+        public bool SaveChunkAsyncPooled(Vector2Int chunkPos, VoxelData[] voxelData, Action onComplete = null) {
+            if (_chunksPath == null) return false;
+            if (_saveInProgress) return false;
+
+            // Lazy-allocate the pooled buffer.
+            if (_saveBuffer == null) {
+                _saveBuffer = new VoxelData[voxelData.Length];
+            }
+
+            // Copy data to pooled buffer.
+            Array.Copy(voxelData, _saveBuffer, voxelData.Length);
+            _saveInProgress = true;
+
+            var path = GetChunkPath(chunkPos);
+            var buffer = _saveBuffer; // Capture for closure.
+
+            GlobalThreadPool.DispatchAction(() => {
+                try {
+                    var serialized = ChunkSerializer.Serialize(chunkPos, buffer);
+                    File.WriteAllBytes(path, serialized);
+                }
+                catch (Exception e) {
+                    Debug.LogError($"[WorldPersistence] Failed to save chunk {chunkPos} async: {e.Message}");
+                }
+            }, () => {
+                _saveInProgress = false;
+                onComplete?.Invoke();
+            });
+
+            return true;
+        }
+
+        /// <summary>
+        /// Gets the pooled save buffer for external filling.
+        /// Use with SaveChunkAsyncFromBuffer for zero-copy saves from NativeArrays.
+        /// </summary>
+        /// <param name="requiredSize">Required buffer size (typically 16*256*16 = 65536).</param>
+        /// <returns>The pooled buffer, or null if a save is in progress.</returns>
+        public VoxelData[] GetSaveBuffer(int requiredSize) {
+            if (_saveInProgress) return null;
+
+            if (_saveBuffer == null || _saveBuffer.Length < requiredSize) {
+                _saveBuffer = new VoxelData[requiredSize];
+            }
+
+            return _saveBuffer;
+        }
+
+        /// <summary>
+        /// Saves chunk using the pre-filled pooled buffer.
+        /// Call GetSaveBuffer first and fill it with voxel data.
+        /// </summary>
+        /// <param name="chunkPos">Chunk position to save.</param>
+        /// <param name="onComplete">Callback when save completes.</param>
+        /// <returns>True if save was started, false if busy or buffer not ready.</returns>
+        public bool SaveChunkAsyncFromBuffer(Vector2Int chunkPos, Action onComplete = null) {
+            if (_chunksPath == null) return false;
+            if (_saveInProgress) return false;
+            if (_saveBuffer == null) return false;
+
+            _saveInProgress = true;
+
+            var path = GetChunkPath(chunkPos);
+            var buffer = _saveBuffer;
+
+            GlobalThreadPool.DispatchAction(() => {
+                try {
+                    var serialized = ChunkSerializer.Serialize(chunkPos, buffer);
+                    File.WriteAllBytes(path, serialized);
+                }
+                catch (Exception e) {
+                    Debug.LogError($"[WorldPersistence] Failed to save chunk {chunkPos} async: {e.Message}");
+                }
+            }, () => {
+                _saveInProgress = false;
+                onComplete?.Invoke();
+            });
+
+            return true;
         }
 
         /// <summary>

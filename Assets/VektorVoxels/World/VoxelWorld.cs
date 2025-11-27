@@ -64,6 +64,10 @@ namespace VektorVoxels.World {
         private float _autoSaveTimer;
         private float _autoSaveInterval = 30f;
 
+        // Throttled save queue - prevents GC spikes from mass chunk saves.
+        private Queue<Chunk> _saveQueue;
+        private HashSet<Chunk> _saveQueueSet;
+
         // Unity Jobs data store (Phase 1 migration).
         private ChunkDataStore _chunkDataStore;
 
@@ -301,6 +305,8 @@ namespace VektorVoxels.World {
             _loadQueue = new Queue<Chunk>();
             _loadQueueSet = new HashSet<Chunk>();
             _persistence = new WorldPersistence();
+            _saveQueue = new Queue<Chunk>();
+            _saveQueueSet = new HashSet<Chunk>();
 
             // Initialize Unity Jobs data store for migration.
             _chunkDataStore = new ChunkDataStore(new int2(_maxChunks.x, _maxChunks.y));
@@ -390,6 +396,8 @@ namespace VektorVoxels.World {
             _loadedChunks.Clear();
             _loadQueue.Clear();
             _loadQueueSet.Clear();
+            _saveQueue.Clear();
+            _saveQueueSet.Clear();
 
             // Clear the chunk array
             for (var x = 0; x < _maxChunks.x; x++) {
@@ -407,36 +415,79 @@ namespace VektorVoxels.World {
         }
 
         /// <summary>
-        /// Saves all dirty chunks to disk.
+        /// Queues all dirty chunks for saving. Chunks are saved one at a time
+        /// to prevent GC spikes from mass allocations.
         /// </summary>
         public void SaveWorld() {
             if (!IsWorldLoaded) return;
 
-            var savedCount = 0;
+            var queuedCount = 0;
             foreach (var chunk in _loadedChunks) {
-                if (chunk.PersistenceDirty) {
-                    _persistence.SaveChunkAsync(chunk.ChunkPos, chunk.VoxelData, () => {
-                        chunk.ClearPersistenceDirty();
-                    });
-                    savedCount++;
+                if (chunk.PersistenceDirty && !_saveQueueSet.Contains(chunk)) {
+                    _saveQueue.Enqueue(chunk);
+                    _saveQueueSet.Add(chunk);
+                    queuedCount++;
                 }
             }
 
-            if (savedCount > 0) {
+            if (queuedCount > 0) {
                 _persistence.SaveWorldMetadata();
-                Debug.Log($"[VoxelWorld] Saved {savedCount} chunks.");
+                Debug.Log($"[VoxelWorld] Queued {queuedCount} chunks for save ({_saveQueue.Count} total in queue).");
             }
         }
 
         /// <summary>
-        /// Gets the number of chunks that need saving.
+        /// Processes the save queue, saving one chunk per call if the persistence layer is ready.
+        /// Uses ChunkDataStore NativeArrays as source and pooled buffer to avoid GC allocations.
+        /// </summary>
+        private void ProcessSaveQueue() {
+            if (_saveQueue.Count == 0) return;
+            if (_persistence.SaveInProgress) return;
+
+            var chunk = _saveQueue.Peek();
+
+            // Get the pooled buffer.
+            var chunkSize = CHUNK_SIZE;
+            var bufferSize = chunkSize.x * chunkSize.y * chunkSize.x;
+            var buffer = _persistence.GetSaveBuffer(bufferSize);
+            if (buffer == null) return; // Buffer busy.
+
+            // Copy voxel data from ChunkDataStore (NativeArray) to managed buffer.
+            var chunkId = new int2(chunk.ChunkId.x, chunk.ChunkId.y);
+            if (_chunkDataStore.IsAllocated(chunkId)) {
+                _chunkDataStore.CopyVoxelsTo(chunkId, buffer);
+            }
+            else {
+                // Fallback to legacy managed array if not in ChunkDataStore.
+                Array.Copy(chunk.VoxelData, buffer, buffer.Length);
+            }
+
+            // Dequeue now that we've captured the data.
+            _saveQueue.Dequeue();
+            _saveQueueSet.Remove(chunk);
+
+            // Start async save.
+            _persistence.SaveChunkAsyncFromBuffer(chunk.ChunkPos, () => {
+                chunk.ClearPersistenceDirty();
+            });
+        }
+
+        /// <summary>
+        /// Gets the number of chunks that need saving (dirty + queued).
         /// </summary>
         public int GetDirtyChunkCount() {
-            var count = 0;
+            var count = _saveQueue.Count;
             foreach (var chunk in _loadedChunks) {
-                if (chunk.PersistenceDirty) count++;
+                if (chunk.PersistenceDirty && !_saveQueueSet.Contains(chunk)) count++;
             }
             return count;
+        }
+
+        /// <summary>
+        /// Gets the number of chunks currently in the save queue.
+        /// </summary>
+        public int GetSaveQueueCount() {
+            return _saveQueue.Count;
         }
         
         /// <summary>
@@ -576,6 +627,9 @@ namespace VektorVoxels.World {
             // Update terrain job scheduler (processes completed jobs).
             _terrainScheduler?.Update();
 
+            // Process save queue (one chunk per frame when ready).
+            ProcessSaveQueue();
+
             // Auto-save dirty chunks on interval
             if (IsWorldLoaded) {
                 _autoSaveTimer += Time.deltaTime;
@@ -593,16 +647,29 @@ namespace VektorVoxels.World {
         }
 
         private void OnApplicationQuit() {
-            // Save all dirty chunks on quit
+            // Save all dirty chunks on quit (synchronously - can't rely on async on exit).
             if (IsWorldLoaded) {
-                Debug.Log("[VoxelWorld] Saving world on exit...");
+                // First, flush any queued chunks.
+                var queuedCount = _saveQueue.Count;
+                while (_saveQueue.Count > 0) {
+                    var chunk = _saveQueue.Dequeue();
+                    _saveQueueSet.Remove(chunk);
+                    _persistence.SaveChunk(chunk.ChunkPos, chunk.VoxelData);
+                    chunk.ClearPersistenceDirty();
+                }
+
+                // Then save any remaining dirty chunks not in queue.
+                var dirtyCount = 0;
                 foreach (var chunk in _loadedChunks) {
                     if (chunk.PersistenceDirty) {
                         _persistence.SaveChunk(chunk.ChunkPos, chunk.VoxelData);
                         chunk.ClearPersistenceDirty();
+                        dirtyCount++;
                     }
                 }
+
                 _persistence.SaveWorldMetadata();
+                Debug.Log($"[VoxelWorld] Saved world on exit ({queuedCount} queued + {dirtyCount} dirty chunks).");
             }
         }
 

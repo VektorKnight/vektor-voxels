@@ -7,7 +7,7 @@ Track active work for continuity across sessions.
 ## Active Work
 
 ### Unity Jobs + Burst Rearchitecture
-**Status:** active (Phase 4 complete)
+**Status:** active (Phase 6 in progress)
 **Started:** 2025-11-25
 **Updated:** 2025-11-26
 
@@ -58,6 +58,14 @@ Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing 
   - Created `MeshingJobScheduler` with texture rect lookup tables
   - Integrated with `Chunk.QueueMeshPass()`
   - Added `_useUnityJobsMeshing` toggle for A/B testing
+- [x] Phase 6: Persistence Polish (GC fix)
+  - Root cause: `SaveWorld()` allocated 512KB VoxelData[] per chunk when saving many dirty chunks at once
+  - Fix: Throttled save queue (one chunk per frame) + pooled buffer
+  - `WorldPersistence`: Added `_saveBuffer`, `SaveInProgress`, `GetSaveBuffer()`, `SaveChunkAsyncFromBuffer()`
+  - `VoxelWorld`: Added `_saveQueue`/`_saveQueueSet`, `ProcessSaveQueue()` called from Update
+  - Now reads from `ChunkDataStore` NativeArrays (with fallback to legacy managed array)
+  - `OnApplicationQuit` flushes queue synchronously
+  - Modified files: `WorldPersistence.cs`, `VoxelWorld.cs`
 
 **Previous Session (2025-11-25):**
 - [x] Phase 1 of old refactor plan: Retry logic added to GenerationJob, LightJob, MeshJob
@@ -67,13 +75,13 @@ Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing 
 
 **Known Bugs (to be fixed by rearchitecture):**
 - Light removal doesn't cascade to neighbors (ghost light remains)
-- Mystery multi-second hitch (likely GC or lock contention)
+- ~~Mystery multi-second hitch~~ - FIXED: Was GC from SaveChunkAsync allocating per-chunk
 
 **Next Session Entry Point:**
-Continue Phase 5 (Main Thread Integration) or Phase 6 (Persistence Polish):
+Phase 6 complete (GC fix verified). Remaining work:
 - Option A: Extend lighting jobs to handle neighbor propagation (phases 2-3 of lighting)
-- Option B: Add async job scheduling with batched completion handling
-- Option C: Polish save/load system with migration support
+- Option B: Add async job scheduling with batched completion handling (Phase 5)
+- Option C: Fix light removal cascade bug (ghost light when removing light sources)
 
 **New Files This Session:**
 - `Assets/VektorVoxels/Data/ChunkData.cs` - Native chunk data struct
@@ -92,7 +100,7 @@ Continue Phase 5 (Main Thread Integration) or Phase 6 (Persistence Polish):
 - [x] Phase 3: Lighting System Rearchitecture (first pass only)
 - [x] Phase 4: Meshing System Conversion
 - [ ] Phase 5: Main Thread Integration (async scheduling, batching)
-- [ ] Phase 6: Persistence Polish
+- [x] Phase 6: Persistence Polish (GC fix verified working)
 
 ---
 
