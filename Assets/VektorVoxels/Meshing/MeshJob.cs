@@ -18,11 +18,14 @@ namespace VektorVoxels.Meshing {
     /// Aborts if chunk job counter has been invalidated.
     /// </summary>
     public class MeshJob : VektorJob {
+        private const int MAX_RETRIES = 3;
+
         private readonly long _id;
         private readonly Chunk _chunk;
         private readonly NeighborSet _neighbors;
         private Mesh.MeshDataArray _meshData;
         private readonly Action _callBack;
+        private int _retryCount;
 
         public MeshJob(long id, Chunk chunk, NeighborSet neighbors, Mesh.MeshDataArray meshData, Action callBack) {
             _id = id;
@@ -30,6 +33,7 @@ namespace VektorVoxels.Meshing {
             _neighbors = neighbors;
             _meshData = meshData;
             _callBack = callBack;
+            _retryCount = 0;
             CompletionState = JobCompletionState.None;
         }
 
@@ -43,6 +47,14 @@ namespace VektorVoxels.Meshing {
             
             // Acquire a read lock on the chunk and generate mesh data.
             if (_chunk.ThreadLock.TryEnterReadLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                // Re-check job counter after acquiring lock - a reload could have invalidated us.
+                if (_chunk.JobCounter != _id) {
+                    _chunk.ThreadLock.ExitReadLock();
+                    Debug.Log($"Mesh job {_id} invalidated after lock acquisition, aborting");
+                    SignalCompletion(JobCompletionState.Aborted);
+                    return;
+                }
+
                 try {
                     var mesher = VisualMesher.LocalThreadInstance;
 
@@ -70,21 +82,15 @@ namespace VektorVoxels.Meshing {
                 }
             }
             else {
-                Debug.LogError("Job aborted due to read lock timeout expiration!\n" +
-                               "Something is probably imploding.");
-                
+                _retryCount++;
+                if (_retryCount <= MAX_RETRIES) {
+                    Debug.LogWarning($"Mesh job failed to acquire lock, retry {_retryCount}/{MAX_RETRIES}");
+                    GlobalThreadPool.DispatchJob(this);
+                    return;
+                }
+
+                Debug.LogError($"Mesh job failed after {MAX_RETRIES} retries. Chunk may be in invalid state.");
                 SignalCompletion(JobCompletionState.Aborted);
-                
-                // This honestly gets us into an invalid state that cannot be recovered from
-                // so the application will just exit by default.
-                DispatchToContext(() => {
-                    if (Application.isEditor) {
-                        Debug.Break();
-                    }
-                    else {
-                        Application.Quit();
-                    }
-                });
             }
         }
     }

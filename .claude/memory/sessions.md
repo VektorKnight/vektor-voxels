@@ -6,105 +6,107 @@ Track active work for continuity across sessions.
 
 ## Active Work
 
-### Chunk Pipeline Refactor
-**Status:** active
+### Unity Jobs + Burst Rearchitecture
+**Status:** active (Phase 2 complete)
+**Started:** 2025-11-25
+**Updated:** 2025-11-26
+
+**Goals:**
+1. Replace custom thread pool with Unity Job System
+2. Add Burst compilation for performance-critical code
+3. Fix light removal bug (cascade-clear algorithm)
+4. Eliminate GC pressure with NativeContainers
+5. Polish existing save/load system
+
+**Planning Document:** `docs/unity_jobs_rearchitecture.md`
+
+**Current State:**
+Phase 2 (Terrain Generation Jobs) complete. Burst-compiled terrain generation running via Unity Jobs. Inspector toggle for A/B testing between old and new systems. Ready for Phase 3 (Lighting System Rearchitecture).
+
+**Key Decisions:**
+- Keep dual meshing paths (greedy flat / standard smooth) - no GPU lightmaps
+- Keep 64x64 finite world - infinite worlds out of scope
+- Adapt existing RLE save system rather than rewrite
+- Dependency-based job scheduling replaces lock-based synchronization
+
+**Completed This Session (2025-11-26):**
+- [x] Phase 1: Data Layer Conversion
+  - Added Unity packages: Burst 1.8.18, Collections 2.5.1, Mathematics 1.3.2
+  - Fixed `HeightData.Dirty` (bool → byte for Burst compatibility)
+  - Created `ChunkData` struct with NativeArrays
+  - Created `ChunkDataStore` for world data management
+  - Integrated dual-write bridge in `Chunk.cs`
+- [x] Phase 2: Terrain Generation Jobs
+  - Created `TerrainGenerationJob` with Burst compilation (`Assets/VektorVoxels/Jobs/`)
+  - Created `TerrainJobScheduler` for job lifecycle management
+  - Integrated with `VoxelWorld` (init/update/dispose)
+  - Modified `Chunk.QueueGenerationPass()` to use new system
+  - Added `_useUnityJobsTerrain` toggle in inspector for A/B testing
+
+**Previous Session (2025-11-25):**
+- [x] Phase 1 of old refactor plan: Retry logic added to GenerationJob, LightJob, MeshJob
+- [x] Fixed sunlight tunnel propagation bug (cavern nodes placed at wrong position)
+- [x] Full system audit (threading, meshing, lighting, terrain gen)
+- [x] Created comprehensive rearchitecture plan
+
+**Known Bugs (to be fixed by rearchitecture):**
+- Light removal doesn't cascade to neighbors (ghost light remains)
+- Mystery multi-second hitch (likely GC or lock contention)
+
+**Next Session Entry Point:**
+Begin Phase 3 of Unity Jobs rearchitecture per `docs/unity_jobs_rearchitecture.md`:
+1. Create `LightPropagationJob` with wavefront algorithm
+2. Create `LightRemovalJob` for cascade-clearing
+3. Create `SunlightColumnJob` for vertical sun propagation
+4. Integrate with chunk lifecycle (replaces current LightJob + LightMapper)
+
+**New Files This Session:**
+- `Assets/VektorVoxels/Data/ChunkData.cs` - Native chunk data struct
+- `Assets/VektorVoxels/Data/ChunkDataStore.cs` - World data management
+- `Assets/VektorVoxels/Jobs/TerrainGenerationJob.cs` - Burst terrain job
+- `Assets/VektorVoxels/Jobs/TerrainJobScheduler.cs` - Job lifecycle manager
+
+**Phases:**
+- [x] Planning and audit
+- [x] Phase 1: Data Layer Conversion
+- [x] Phase 2: Terrain Generation Jobs
+- [ ] Phase 3: Lighting System Rearchitecture
+- [ ] Phase 4: Meshing System Conversion
+- [ ] Phase 5: Main Thread Integration
+- [ ] Phase 6: Persistence Polish
+
+---
+
+### Chunk Pipeline Refactor (Superseded)
+**Status:** superseded by Unity Jobs rearchitecture
 **Started:** 2025-11-25
 **Updated:** 2025-11-25
 
-**Goals:**
-1. Simplify chunk pipeline architecture
-2. Remove redundant lighting pass
-3. Fix synchronization anti-patterns
-4. Improve robustness (retry on failure instead of crash)
-5. Reduce event subscription overhead
+**Summary:**
+Original incremental refactor plan at `docs/chunk_pipeline_refactor.md`. Phase 1 (retry logic) completed and kept. Phase 2 (remove third pass) attempted but reverted - revealed that the synchronization model fundamentally requires multiple passes for cross-chunk propagation.
 
-**Current State:**
-Comprehensive pipeline audit completed. Critical light propagation bug FIXED (lightmap wasn't being updated during propagation). VoxelColor struct enhanced with attenuation LUT and helper methods. Refactoring plan created at `docs/chunk_pipeline_refactor.md`.
+Decision made to do full rearchitecture with Unity Jobs instead of incremental patches. Original plan preserved for reference.
 
-**Critical Fix (2025-11-25):**
-Root cause of exponential work in light propagation: `lightMap[cpi] = VoxelColor.Max(...)` was COMMENTED OUT. Every visit to a position saw original dark value, causing infinite revisits via multiple paths.
-
-**VoxelColor Improvements (2025-11-25):**
-- Added 4-parameter `Decompose()` (LightMapper compatibility)
-- Fixed `Compare` bug (renamed to `AnyChannelGreater`)
-- Added `Attenuate()` with pre-computed LUT
-- Added `Tint()` and `AttenuateAndTint()` for translucent blocks
-- Added `IsBelowThreshold`, `IsBlack`, `DominatesOrEquals` helpers
-- Moved attenuation constants to VoxelColor
-
-**Next Session Entry Point:**
-Begin Phase 1 of chunk pipeline refactor per `docs/chunk_pipeline_refactor.md`
-
-**Phases:**
-- [x] Phase 0: Audit and document pipeline issues
-- [ ] Phase 1: Low-risk fixes (retry logic, job counter re-check)
-- [ ] Phase 2: Remove third lighting pass
-- [ ] Phase 3: Consolidate volatile flags
-- [ ] Phase 4: Simplify neighbor synchronization
-- [ ] Phase 5: (Optional) Central event bus
+**Kept from this effort:**
+- Retry logic (3 retries on lock timeout instead of app crash)
+- Job counter re-check after lock acquisition
+- Sunlight tunnel propagation fix
 
 ---
 
 ### Codebase Revival & Cleanup (Previous)
-**Status:** paused (blocked by pipeline refactor)
+**Status:** paused (context preserved, superseded by rearchitecture)
 **Started:** 2025-11-21
 **Updated:** 2025-11-25
 
-**Goals:**
-1. Fast multi-threaded chunk generation/meshing/lighting
-2. Full-color (8-bit) RGB voxel lighting
-3. Fix PhysX collision stuttering
-4. Polish for GitHub showcase
-
-**Phases:**
-- [x] Phase 1: Critical fixes, performance wins, code cleanup
-- [x] Phase 2: Upgrade lighting to 8-bit per channel
-- [x] Phase 2.5: Save system implementation
-- [ ] Phase 3: Fix PhysX collision (after pipeline refactor)
-- [ ] Phase 4: Polish for showcase
-
-**Save System (2025-11-22):**
-- `Assets/VektorVoxels/Persistence/` - WorldSaveData, ChunkSerializer (RLE), VoxelIdRemapper, WorldPersistence
-- `Assets/VektorVoxels/UI/WorldUI.cs` - IMGUI interface (F5 to toggle)
-- Worlds saved to `Application.persistentDataPath/worlds/{name}/`
-- Auto-save every 30 seconds, save on quit
-- ID remapping via InternalName for voxel database changes
-- Game waits for world create/load before generating chunks
-- Plan documented in `docs/save_system_plan.md`
-
-**Bug Fixes (2025-11-22):**
-- ConcurrentQueue for voxel updates (thread safety) - `Chunks/Chunk.cs` - **Note: User reverted to regular Queue**
-- VoxelTrace division by zero protection - `VoxelPhysics/VoxelTrace.cs`
-- Mesh callback latency fix (throttled → default queue) - `Meshing/MeshJob.cs` - **Note: User reverted to Throttled**
-- Added `GlobalThreadPool.DispatchAction()` for simple async work
-- Added `ActionJob` for thread pool actions
-
-**Latency Investigation (2025-11-22):**
-- User reports extreme latency on boundary voxel placement (started after earlier threading changes)
-- Distant chunks finish loading before near chunks (expected due to fewer neighbor dependencies)
-- Lock contention occurs when chunks try to read neighbors still in Lighting state
-- The leapfrog pattern is caused by sequential event handler processing
-- User made additional changes: removed _persistenceDirty field, reverted _voxelUpdates to regular Queue
-
-**Documentation Audit (2025-11-22):**
-Added XML docs to: VektorPlayer, LightJob, NeighborSet, MeshJob, MeshTables, VoxelUtility, FacingDirection.
-Core files (Chunk, VoxelWorld, LightMapper, VoxelBody, VoxelCollider, VoxelTrace) already well-documented.
-Enums (ChunkState, LightPass, VoxelFlags, ChunkEvent, NeighborFlags) already documented.
-
-**Memory Optimizations (2025-11-22):**
-- VoxelColor (RGB565): Lighting memory halved (512 KB → 256 KB per chunk)
-- Consolidated LightColor and Color16 into unified VoxelColor type
-- Simplified translucent tinting: ColorData is now direct pass-through multiplier (no attenuation inversion)
-- Color16 marked deprecated
+**Summary:**
+Initial revival work including 8-bit lighting upgrade, save system implementation, various bug fixes. See previous session notes for details. This work provided foundation for the rearchitecture decision.
 
 **Artifacts:**
 - `docs/phase1_summary.md` - Learning summary
 - `docs/phase2_summary.md` - Learning summary
 - `docs/save_system_plan.md` - Save system design
-
-**Notes:**
-User wants learning summaries explaining what/why/how for each phase.
-Mesh callback was using Throttled queue causing 1-2s latency on voxel updates - changed to Default queue.
+- `docs/initial_report.md` - Full audit with severity ratings
 
 ---
 

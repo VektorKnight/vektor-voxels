@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Threading;
 using Unity.Jobs;
 using UnityEngine;
 using VektorVoxels.Chunks;
@@ -16,11 +17,14 @@ namespace VektorVoxels.Lighting {
     /// Aborts if chunk job counter has been invalidated (chunk unloaded/reloaded).
     /// </summary>
     public class LightJob : VektorJob {
+        private const int MAX_RETRIES = 3;
+
         private readonly long _id;
         private readonly Chunk _chunk;
         private readonly NeighborSet _neighbors;
         private readonly LightPass _pass;
         private readonly Action _callBack;
+        private int _retryCount;
 
         public LightJob(long id, Chunk chunk, NeighborSet neighbors, LightPass pass, Action callBack) {
             _id = id;
@@ -28,6 +32,7 @@ namespace VektorVoxels.Lighting {
             _neighbors = neighbors;
             _pass = pass;
             _callBack = callBack;
+            _retryCount = 0;
         }
 
         public override void Execute() {
@@ -39,6 +44,14 @@ namespace VektorVoxels.Lighting {
             }
             
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                // Re-check job counter after acquiring lock - a reload could have invalidated us.
+                if (_chunk.JobCounter != _id) {
+                    _chunk.ThreadLock.ExitWriteLock();
+                    Debug.Log($"Light job {_id} invalidated after lock acquisition, aborting");
+                    SignalCompletion(JobCompletionState.Aborted);
+                    return;
+                }
+
                 try {
                     var lightMapper = LightMapper.LocalThreadInstance;
                     bool success = true;
@@ -52,12 +65,6 @@ namespace VektorVoxels.Lighting {
                             lightMapper.PropagateBlockLight(_chunk);
                             break;
                         case LightPass.Second:
-                            success = lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
-                            if (success) {
-                                lightMapper.PropagateSunLight(_chunk);
-                                lightMapper.PropagateBlockLight(_chunk);
-                            }
-                            break;
                         case LightPass.Third:
                             success = lightMapper.InitializeNeighborLightPass(_chunk, _neighbors);
                             if (success) {
@@ -70,13 +77,23 @@ namespace VektorVoxels.Lighting {
                     }
 
                     if (!success) {
-                        Debug.LogWarning($"Light pass {_pass} failed to acquire neighbor locks, job will be retried");
+                        _chunk.ThreadLock.ExitWriteLock();
+                        _retryCount++;
+                        if (_retryCount <= MAX_RETRIES) {
+                            Debug.LogWarning($"Light pass {_pass} failed to acquire neighbor locks, retry {_retryCount}/{MAX_RETRIES}");
+                            Thread.Sleep(10);
+                            GlobalThreadPool.DispatchJob(this);
+                            return;
+                        }
+                        Debug.LogError($"Light pass {_pass} failed after {MAX_RETRIES} retries");
                         SignalCompletion(JobCompletionState.Aborted);
                         return;
                     }
                 }
                 finally {
-                    _chunk.ThreadLock.ExitWriteLock();
+                    if (_chunk.ThreadLock.IsWriteLockHeld) {
+                        _chunk.ThreadLock.ExitWriteLock();
+                    }
                 }
 
                 // Signal completion.
@@ -88,21 +105,15 @@ namespace VektorVoxels.Lighting {
                 }
             }
             else {
-                Debug.LogError("Light job failed to acquire a write lock within the specified timeout!\n" +
-                               "Application will exit.");
-                
+                _retryCount++;
+                if (_retryCount <= MAX_RETRIES) {
+                    Debug.LogWarning($"Light job failed to acquire lock, retry {_retryCount}/{MAX_RETRIES}");
+                    GlobalThreadPool.DispatchJob(this);
+                    return;
+                }
+
+                Debug.LogError($"Light job failed after {MAX_RETRIES} retries. Chunk may be in invalid state.");
                 SignalCompletion(JobCompletionState.Aborted);
-                
-                // This honestly gets us into an invalid state that cannot be recovered from
-                // so the application will just exit by default.
-                _context.Post((state) => {
-                    if (Application.isEditor) {
-                        Debug.Break();
-                    }
-                    else {
-                        Application.Quit();
-                    }
-                }, null);
             }
         }
     }

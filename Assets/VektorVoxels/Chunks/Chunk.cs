@@ -3,12 +3,14 @@ using System.Collections.Concurrent;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.Rendering;
+using VektorVoxels.Data;
 using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
 using VektorVoxels.Threading;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
+using Unity.Mathematics;
 using Debug = UnityEngine.Debug;
 
 namespace VektorVoxels.Chunks {
@@ -177,6 +179,9 @@ namespace VektorVoxels.Chunks {
             // Register with world events.
             VoxelWorld.OnWorldEvent += WorldEventHandler;
 
+            // Allocate native data for Unity Jobs migration.
+            AllocateNativeData();
+
             // Queue generation pass.
             QueueGenerationPass();
         }
@@ -235,13 +240,20 @@ namespace VektorVoxels.Chunks {
             // Register with world events.
             VoxelWorld.OnWorldEvent += WorldEventHandler;
 
+            // Allocate native data for Unity Jobs migration.
+            AllocateNativeData();
+
             // Rebuild heightmap and queue lighting (skip generation)
             RebuildHeightMap();
             _isDirty = true;
             _lightPass = LightPass.None;
+
+            // Sync loaded data to native arrays.
+            SyncVoxelsToNativeData();
+
             QueueLightPass(LightPass.First);
         }
-        
+
         /// <summary>
         /// Transforms a world coordinate to local voxel grid space.
         /// The coordinate might lie outside of this chunk's local grid.
@@ -344,11 +356,32 @@ namespace VektorVoxels.Chunks {
         
         /// <summary>
         /// Queues the terrain generation pass on this chunk.
+        /// Uses Unity Jobs scheduler if enabled, otherwise falls back to legacy GenerationJob.
         /// </summary>
         private void QueueGenerationPass() {
             _waitingForJob = true;
-            GlobalThreadPool.DispatchJob(new GenerationJob(_jobSetCounter, this, _generationCallback));
             _state = ChunkState.TerrainGeneration;
+
+            // Try Unity Jobs terrain generation if enabled
+            var world = VoxelWorld.Instance;
+            if (world != null && world.UseUnityJobsTerrain && world.TerrainScheduler != null) {
+                // Schedule via Unity Jobs system
+                world.TerrainScheduler.ScheduleGeneration(_chunkId, OnUnityJobsGenerationComplete);
+            }
+            else {
+                // Fall back to legacy thread pool
+                GlobalThreadPool.DispatchJob(new GenerationJob(_jobSetCounter, this, _generationCallback));
+            }
+        }
+
+        /// <summary>
+        /// Called when Unity Jobs terrain generation completes.
+        /// Syncs data from native arrays and triggers lighting.
+        /// </summary>
+        private void OnUnityJobsGenerationComplete(Vector2Int chunkId) {
+            // The scheduler already synced voxels/heightmap to managed arrays.
+            // Now trigger the same flow as the legacy callback.
+            _generationCallback?.Invoke();
         }
         
         /// <summary>
@@ -407,8 +440,8 @@ namespace VektorVoxels.Chunks {
                 case LightPass.Second: {
                     GlobalThreadPool.DispatchJob(
                         new LightJob(
-                            _jobSetCounter, 
-                            this, 
+                            _jobSetCounter,
+                            this,
                             new NeighborSet(_neighborBuffer, _neighborFlags),
                             LightPass.Second, _lightCallback2
                         )
@@ -418,8 +451,8 @@ namespace VektorVoxels.Chunks {
                 case LightPass.Third: {
                     GlobalThreadPool.DispatchJob(
                         new LightJob(
-                            _jobSetCounter, 
-                            this, 
+                            _jobSetCounter,
+                            this,
                             new NeighborSet(_neighborBuffer, _neighborFlags),
                             LightPass.Third, _lightCallback3
                         )
@@ -459,6 +492,9 @@ namespace VektorVoxels.Chunks {
         /// Called when the generation pass has completed..
         /// </summary>
         private void OnGenerationPassComplete() {
+            // Sync generated terrain to native arrays.
+            SyncVoxelsToNativeData();
+
             _isDirty = true;
             _lightPass = LightPass.None;
             QueueLightPass(LightPass.First);
@@ -471,6 +507,11 @@ namespace VektorVoxels.Chunks {
             Debug.Assert(pass > _lightPass);
             _lightPass = pass;
             _state = ChunkState.WaitingForNeighbors;
+
+            // Sync light data to native arrays after final pass.
+            if (pass == LightPass.Third) {
+                SyncLightToNativeData();
+            }
 
             // Subscribe to neighbor notifications for event-driven waiting.
             SubscribeToNeighborEvents();
@@ -804,6 +845,9 @@ namespace VektorVoxels.Chunks {
                     _isDirty = true;
                     _persistenceDirty = true;
                     UpdateAffectedNeighbors(affectedNeighbors);
+
+                    // Sync voxel changes to native arrays.
+                    SyncVoxelsToNativeData();
                 }
             }
         }
@@ -822,6 +866,101 @@ namespace VektorVoxels.Chunks {
                 Unload();
             }
         }
+
+        #region Unity Jobs Bridge (Phase 1 Migration)
+
+        /// <summary>
+        /// Allocates this chunk's data in the ChunkDataStore.
+        /// Call once during initialization.
+        /// </summary>
+        private void AllocateNativeData() {
+            var store = VoxelWorld.Instance?.ChunkDataStore;
+            if (store == null) return;
+
+            var nativeId = new int2(_chunkId.x, _chunkId.y);
+            store.AllocateChunk(nativeId);
+        }
+
+        /// <summary>
+        /// Deallocates this chunk's data from the ChunkDataStore.
+        /// Call during destruction.
+        /// </summary>
+        private void DeallocateNativeData() {
+            // Skip if VoxelWorld is already destroyed (shutdown order not guaranteed)
+            if (VoxelWorld.Instance == null) return;
+
+            var store = VoxelWorld.Instance.ChunkDataStore;
+            if (store == null || store.IsDisposed) return;
+
+            var nativeId = new int2(_chunkId.x, _chunkId.y);
+            store.DeallocateChunk(nativeId);
+        }
+
+        /// <summary>
+        /// Syncs all data from managed arrays to NativeArrays.
+        /// Call after terrain generation or voxel updates.
+        /// </summary>
+        public void SyncToNativeData() {
+            var store = VoxelWorld.Instance?.ChunkDataStore;
+            if (store == null || store.IsDisposed) return;
+
+            var nativeId = new int2(_chunkId.x, _chunkId.y);
+            if (!store.IsAllocated(nativeId)) return;
+
+            store.CopyVoxelsFrom(nativeId, _voxelData);
+            store.CopySunLightFrom(nativeId, _sunLight);
+            store.CopyBlockLightFrom(nativeId, _blockLight);
+            store.CopyHeightMapFrom(nativeId, _heightMap);
+        }
+
+        /// <summary>
+        /// Syncs all data from NativeArrays to managed arrays.
+        /// Call when native jobs have modified the data.
+        /// </summary>
+        public void SyncFromNativeData() {
+            var store = VoxelWorld.Instance?.ChunkDataStore;
+            if (store == null || store.IsDisposed) return;
+
+            var nativeId = new int2(_chunkId.x, _chunkId.y);
+            if (!store.IsAllocated(nativeId)) return;
+
+            store.CopyVoxelsTo(nativeId, _voxelData);
+            store.CopySunLightTo(nativeId, _sunLight);
+            store.CopyBlockLightTo(nativeId, _blockLight);
+            store.CopyHeightMapTo(nativeId, _heightMap);
+        }
+
+        /// <summary>
+        /// Syncs only voxel and height data to NativeArrays.
+        /// Call after voxel updates when light hasn't changed.
+        /// </summary>
+        public void SyncVoxelsToNativeData() {
+            var store = VoxelWorld.Instance?.ChunkDataStore;
+            if (store == null || store.IsDisposed) return;
+
+            var nativeId = new int2(_chunkId.x, _chunkId.y);
+            if (!store.IsAllocated(nativeId)) return;
+
+            store.CopyVoxelsFrom(nativeId, _voxelData);
+            store.CopyHeightMapFrom(nativeId, _heightMap);
+        }
+
+        /// <summary>
+        /// Syncs only light data to NativeArrays.
+        /// Call after lighting passes complete.
+        /// </summary>
+        public void SyncLightToNativeData() {
+            var store = VoxelWorld.Instance?.ChunkDataStore;
+            if (store == null || store.IsDisposed) return;
+
+            var nativeId = new int2(_chunkId.x, _chunkId.y);
+            if (!store.IsAllocated(nativeId)) return;
+
+            store.CopySunLightFrom(nativeId, _sunLight);
+            store.CopyBlockLightFrom(nativeId, _blockLight);
+        }
+
+        #endregion
 
         private void OnDrawGizmos() {
             return;
@@ -846,6 +985,9 @@ namespace VektorVoxels.Chunks {
 
             // Unsubscribe from neighbor events.
             UnsubscribeFromNeighborEvents();
+
+            // Deallocate native data for Unity Jobs migration.
+            DeallocateNativeData();
 
             // Dispose the thread lock (implements IDisposable).
             _threadLock?.Dispose();

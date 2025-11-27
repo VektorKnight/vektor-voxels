@@ -10,6 +10,9 @@ using VektorVoxels.Threading.Jobs;
 using VektorVoxels.Voxels;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Persistence;
+using VektorVoxels.Data;
+using VektorVoxels.Jobs;
+using Unity.Mathematics;
 using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
@@ -61,8 +64,34 @@ namespace VektorVoxels.World {
         private float _autoSaveTimer;
         private float _autoSaveInterval = 30f;
 
+        // Unity Jobs data store (Phase 1 migration).
+        private ChunkDataStore _chunkDataStore;
+
+        // Unity Jobs terrain scheduler (Phase 2 migration).
+        private TerrainJobScheduler _terrainScheduler;
+
+        [Header("Unity Jobs Migration")]
+        [SerializeField] private bool _useUnityJobsTerrain = true;
+
         public WorldPersistence Persistence => _persistence;
         public bool IsWorldLoaded => _persistence?.IsWorldLoaded ?? false;
+
+        /// <summary>
+        /// Native container storage for Unity Jobs system.
+        /// Used during migration from managed arrays to NativeArrays.
+        /// </summary>
+        public ChunkDataStore ChunkDataStore => _chunkDataStore;
+
+        /// <summary>
+        /// Burst-compiled terrain generator scheduler.
+        /// </summary>
+        public TerrainJobScheduler TerrainScheduler => _terrainScheduler;
+
+        /// <summary>
+        /// Whether to use Unity Jobs for terrain generation.
+        /// Toggle in inspector for A/B testing.
+        /// </summary>
+        public bool UseUnityJobsTerrain => _useUnityJobsTerrain;
 
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
@@ -243,8 +272,36 @@ namespace VektorVoxels.World {
             _loadQueueSet = new HashSet<Chunk>();
             _persistence = new WorldPersistence();
 
+            // Initialize Unity Jobs data store for migration.
+            _chunkDataStore = new ChunkDataStore(new int2(_maxChunks.x, _maxChunks.y));
+
+            // Initialize Unity Jobs terrain scheduler with same layers as PerlinGenerator.
+            if (_useUnityJobsTerrain) {
+                _terrainScheduler = new TerrainJobScheduler();
+                var layers = GetDefaultTerrainLayers();
+                _terrainScheduler.Initialize(layers, 0.02f);
+            }
+
             // Configure thread pool throttled queue.
             GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
+        }
+
+        /// <summary>
+        /// Creates the default terrain layer configuration.
+        /// Matches PerlinGenerator.Default() for consistency.
+        /// </summary>
+        private VoxelLayer[] GetDefaultTerrainLayers() {
+            var bedrock = VoxelTable.GetVoxelDefinition("bedrock");
+            var stone = VoxelTable.GetVoxelDefinition("stone");
+            var dirt = VoxelTable.GetVoxelDefinition("dirt");
+            var grass = VoxelTable.GetVoxelDefinition("grass");
+
+            return new[] {
+                new VoxelLayer(grass.Id, 1),
+                new VoxelLayer(dirt.Id, 3),
+                new VoxelLayer(stone.Id, 27),
+                new VoxelLayer(bedrock.Id, 1)
+            };
         }
 
         /// <summary>
@@ -474,6 +531,9 @@ namespace VektorVoxels.World {
                 chunk.OnTick();
             }
 
+            // Update terrain job scheduler (processes completed jobs).
+            _terrainScheduler?.Update();
+
             // Auto-save dirty chunks on interval
             if (IsWorldLoaded) {
                 _autoSaveTimer += Time.deltaTime;
@@ -502,6 +562,12 @@ namespace VektorVoxels.World {
                 }
                 _persistence.SaveWorldMetadata();
             }
+        }
+
+        private void OnDestroy() {
+            // Dispose Unity Jobs systems to prevent memory leaks.
+            _terrainScheduler?.Dispose();
+            _chunkDataStore?.Dispose();
         }
 
         private void OnDrawGizmos() {

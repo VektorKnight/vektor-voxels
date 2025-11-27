@@ -312,7 +312,7 @@ namespace VektorVoxels.Lighting {
                     var hi = VoxelUtility.HeightIndex(x, z, d.x);
                     var heightData = heightMap[hi];
                     var height = heightData.Value;
-                    heightData.Dirty = false;
+                    heightData.Dirty = 0;
 
                     // Find max height among cardinal neighbors for regionMax optimization.
                     var regionMax = (int)height;
@@ -345,9 +345,14 @@ namespace VektorVoxels.Lighting {
                             var neighborHeight = heightMap[VoxelUtility.HeightIndex(nx, nz, d.x)].Value;
 
                             // If this Y is below the neighbor's surface, there's a cavern opening.
-                            // Place a propagation node - it will flood-fill into the neighbor's underground.
+                            // Place propagation node at the UNDERGROUND position (neighbor column),
+                            // not the entrance (which already has light and would be skipped).
                             if (y < neighborHeight) {
-                                _sunNodes.Push(new LightNode(new Vector3Int(x, y, z), fullLight));
+                                var neighborIdx = VoxelUtility.VoxelIndex(nx, y, nz, d);
+                                // Only place node if the underground position is air (not blocked).
+                                if (!chunk.VoxelData[neighborIdx].IsOpaque()) {
+                                    _sunNodes.Push(new LightNode(new Vector3Int(nx, y, nz), fullLight));
+                                }
                                 break; // Only need one node per Y level
                             }
                         }

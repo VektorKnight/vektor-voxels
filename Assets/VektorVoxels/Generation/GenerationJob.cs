@@ -11,14 +11,18 @@ namespace VektorVoxels.Generation {
     /// Executes the primary terrain generator on a given chunk.
     /// </summary>
     public class GenerationJob : VektorJob {
+        private const int MAX_RETRIES = 3;
+
         private readonly long _id;
         private readonly Chunk _chunk;
         private readonly Action _callBack;
-        
+        private int _retryCount;
+
         public GenerationJob(long id, Chunk chunk, Action callBack) {
             _id = id;
             _chunk = chunk;
             _callBack = callBack;
+            _retryCount = 0;
         }
 
         public override void Execute() {
@@ -30,6 +34,14 @@ namespace VektorVoxels.Generation {
             }
 
             if (_chunk.ThreadLock.TryEnterWriteLock(GlobalConstants.JOB_LOCK_TIMEOUT_MS)) {
+                // Re-check job counter after acquiring lock - a reload could have invalidated us.
+                if (_chunk.JobCounter != _id) {
+                    _chunk.ThreadLock.ExitWriteLock();
+                    Debug.Log($"Generation job {_id} invalidated after lock acquisition, aborting");
+                    SignalCompletion(JobCompletionState.Aborted);
+                    return;
+                }
+
                 try {
                     VoxelWorld.Instance.Generator.ProcessChunk(_chunk);
                 }
@@ -46,21 +58,15 @@ namespace VektorVoxels.Generation {
                 }
             }
             else {
-                Debug.LogError("Job aborted due to lock timeout expiration!\n" +
-                               "Something is probably imploding.");
+                _retryCount++;
+                if (_retryCount <= MAX_RETRIES) {
+                    Debug.LogWarning($"Generation job failed to acquire lock, retry {_retryCount}/{MAX_RETRIES}");
+                    GlobalThreadPool.DispatchJob(this);
+                    return;
+                }
 
+                Debug.LogError($"Generation job failed after {MAX_RETRIES} retries. Chunk may be in invalid state.");
                 SignalCompletion(JobCompletionState.Aborted);
-
-                // This honestly gets us into an invalid state that cannot be recovered from
-                // so the application will just exit by default.
-                DispatchToContext(() => {
-                    if (Application.isEditor) {
-                        Debug.Break();
-                    }
-                    else {
-                        Application.Quit();
-                    }
-                });
             }
         }
     }
