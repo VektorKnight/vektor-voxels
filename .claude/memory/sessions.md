@@ -7,7 +7,7 @@ Track active work for continuity across sessions.
 ## Active Work
 
 ### Unity Jobs + Burst Rearchitecture
-**Status:** active (Phase 2 complete)
+**Status:** active (Phase 4 complete)
 **Started:** 2025-11-25
 **Updated:** 2025-11-26
 
@@ -21,7 +21,7 @@ Track active work for continuity across sessions.
 **Planning Document:** `docs/unity_jobs_rearchitecture.md`
 
 **Current State:**
-Phase 2 (Terrain Generation Jobs) complete. Burst-compiled terrain generation running via Unity Jobs. Inspector toggle for A/B testing between old and new systems. Ready for Phase 3 (Lighting System Rearchitecture).
+Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing now running via Unity Jobs. Each system has inspector toggle for A/B testing. User reports noticeable performance improvement and some lighting bugs appear fixed.
 
 **Key Decisions:**
 - Keep dual meshing paths (greedy flat / standard smooth) - no GPU lightmaps
@@ -30,6 +30,12 @@ Phase 2 (Terrain Generation Jobs) complete. Burst-compiled terrain generation ru
 - Dependency-based job scheduling replaces lock-based synchronization
 
 **Completed This Session (2025-11-26):**
+- [x] Fix: Colored sunlight propagation across chunk boundaries
+  - Root cause: Propagation only tinted light when ENTERING translucent blocks, not when EXITING
+  - Fix: Added exit-tinting to both Unity Jobs and legacy propagation systems
+  - Simplified `SunlightColumnJob` to use seeds instead of manual column filtering
+  - Sunlight now works identically to block light after heightmap optimization
+  - Modified `LightPropagationJob`, `LightMapper.PropagateLightNodes`, `SunlightColumnJob`
 - [x] Phase 1: Data Layer Conversion
   - Added Unity packages: Burst 1.8.18, Collections 2.5.1, Mathematics 1.3.2
   - Fixed `HeightData.Dirty` (bool → byte for Burst compatibility)
@@ -37,11 +43,21 @@ Phase 2 (Terrain Generation Jobs) complete. Burst-compiled terrain generation ru
   - Created `ChunkDataStore` for world data management
   - Integrated dual-write bridge in `Chunk.cs`
 - [x] Phase 2: Terrain Generation Jobs
-  - Created `TerrainGenerationJob` with Burst compilation (`Assets/VektorVoxels/Jobs/`)
+  - Created `TerrainGenerationJob` with Burst compilation
   - Created `TerrainJobScheduler` for job lifecycle management
-  - Integrated with `VoxelWorld` (init/update/dispose)
-  - Modified `Chunk.QueueGenerationPass()` to use new system
-  - Added `_useUnityJobsTerrain` toggle in inspector for A/B testing
+  - Integrated with `VoxelWorld` and `Chunk`
+  - Added `_useUnityJobsTerrain` toggle for A/B testing
+- [x] Phase 3: Lighting System Rearchitecture (First Pass)
+  - Created `LightingJobs.cs`: SunlightColumnJob, BlockLightSourceJob, LightPropagationJob, LightRemovalJob
+  - Created `LightingJobScheduler` with wavefront BFS propagation
+  - Integrated with `Chunk.QueueLightPass()` for first pass
+  - Added `_useUnityJobsLighting` toggle for A/B testing
+  - Phases 2-3 (neighbor lighting) still use legacy system
+- [x] Phase 4: Meshing System Conversion
+  - Created `MeshingJobs.cs`: VisualMeshingJob with Burst compilation
+  - Created `MeshingJobScheduler` with texture rect lookup tables
+  - Integrated with `Chunk.QueueMeshPass()`
+  - Added `_useUnityJobsMeshing` toggle for A/B testing
 
 **Previous Session (2025-11-25):**
 - [x] Phase 1 of old refactor plan: Retry logic added to GenerationJob, LightJob, MeshJob
@@ -54,25 +70,28 @@ Phase 2 (Terrain Generation Jobs) complete. Burst-compiled terrain generation ru
 - Mystery multi-second hitch (likely GC or lock contention)
 
 **Next Session Entry Point:**
-Begin Phase 3 of Unity Jobs rearchitecture per `docs/unity_jobs_rearchitecture.md`:
-1. Create `LightPropagationJob` with wavefront algorithm
-2. Create `LightRemovalJob` for cascade-clearing
-3. Create `SunlightColumnJob` for vertical sun propagation
-4. Integrate with chunk lifecycle (replaces current LightJob + LightMapper)
+Continue Phase 5 (Main Thread Integration) or Phase 6 (Persistence Polish):
+- Option A: Extend lighting jobs to handle neighbor propagation (phases 2-3 of lighting)
+- Option B: Add async job scheduling with batched completion handling
+- Option C: Polish save/load system with migration support
 
 **New Files This Session:**
 - `Assets/VektorVoxels/Data/ChunkData.cs` - Native chunk data struct
 - `Assets/VektorVoxels/Data/ChunkDataStore.cs` - World data management
 - `Assets/VektorVoxels/Jobs/TerrainGenerationJob.cs` - Burst terrain job
-- `Assets/VektorVoxels/Jobs/TerrainJobScheduler.cs` - Job lifecycle manager
+- `Assets/VektorVoxels/Jobs/TerrainJobScheduler.cs` - Terrain job lifecycle manager
+- `Assets/VektorVoxels/Jobs/LightingJobs.cs` - Burst lighting jobs (4 job types)
+- `Assets/VektorVoxels/Jobs/LightingJobScheduler.cs` - Lighting job lifecycle manager
+- `Assets/VektorVoxels/Jobs/MeshingJobs.cs` - Burst meshing job
+- `Assets/VektorVoxels/Jobs/MeshingJobScheduler.cs` - Meshing job lifecycle manager
 
 **Phases:**
 - [x] Planning and audit
 - [x] Phase 1: Data Layer Conversion
 - [x] Phase 2: Terrain Generation Jobs
-- [ ] Phase 3: Lighting System Rearchitecture
-- [ ] Phase 4: Meshing System Conversion
-- [ ] Phase 5: Main Thread Integration
+- [x] Phase 3: Lighting System Rearchitecture (first pass only)
+- [x] Phase 4: Meshing System Conversion
+- [ ] Phase 5: Main Thread Integration (async scheduling, batching)
 - [ ] Phase 6: Persistence Polish
 
 ---

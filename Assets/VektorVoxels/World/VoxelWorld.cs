@@ -70,8 +70,16 @@ namespace VektorVoxels.World {
         // Unity Jobs terrain scheduler (Phase 2 migration).
         private TerrainJobScheduler _terrainScheduler;
 
+        // Unity Jobs lighting scheduler (Phase 3 migration).
+        private LightingJobScheduler _lightingScheduler;
+
+        // Unity Jobs meshing scheduler (Phase 4 migration).
+        private MeshingJobScheduler _meshingScheduler;
+
         [Header("Unity Jobs Migration")]
         [SerializeField] private bool _useUnityJobsTerrain = true;
+        [SerializeField] private bool _useUnityJobsLighting = true;
+        [SerializeField] private bool _useUnityJobsMeshing = true;
 
         public WorldPersistence Persistence => _persistence;
         public bool IsWorldLoaded => _persistence?.IsWorldLoaded ?? false;
@@ -88,10 +96,32 @@ namespace VektorVoxels.World {
         public TerrainJobScheduler TerrainScheduler => _terrainScheduler;
 
         /// <summary>
+        /// Burst-compiled lighting scheduler.
+        /// </summary>
+        public LightingJobScheduler LightingScheduler => _lightingScheduler;
+
+        /// <summary>
         /// Whether to use Unity Jobs for terrain generation.
         /// Toggle in inspector for A/B testing.
         /// </summary>
         public bool UseUnityJobsTerrain => _useUnityJobsTerrain;
+
+        /// <summary>
+        /// Whether to use Unity Jobs for lighting.
+        /// Toggle in inspector for A/B testing.
+        /// </summary>
+        public bool UseUnityJobsLighting => _useUnityJobsLighting;
+
+        /// <summary>
+        /// Burst-compiled meshing scheduler.
+        /// </summary>
+        public MeshingJobScheduler MeshingScheduler => _meshingScheduler;
+
+        /// <summary>
+        /// Whether to use Unity Jobs for meshing.
+        /// Toggle in inspector for A/B testing.
+        /// </summary>
+        public bool UseUnityJobsMeshing => _useUnityJobsMeshing;
 
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
@@ -280,6 +310,18 @@ namespace VektorVoxels.World {
                 _terrainScheduler = new TerrainJobScheduler();
                 var layers = GetDefaultTerrainLayers();
                 _terrainScheduler.Initialize(layers, 0.02f);
+            }
+
+            // Initialize Unity Jobs lighting scheduler.
+            if (_useUnityJobsLighting) {
+                _lightingScheduler = new LightingJobScheduler();
+                _lightingScheduler.Initialize();
+            }
+
+            // Initialize Unity Jobs meshing scheduler.
+            if (_useUnityJobsMeshing) {
+                _meshingScheduler = new MeshingJobScheduler();
+                _meshingScheduler.Initialize();
             }
 
             // Configure thread pool throttled queue.
@@ -566,6 +608,8 @@ namespace VektorVoxels.World {
 
         private void OnDestroy() {
             // Dispose Unity Jobs systems to prevent memory leaks.
+            _meshingScheduler?.Dispose();
+            _lightingScheduler?.Dispose();
             _terrainScheduler?.Dispose();
             _chunkDataStore?.Dispose();
         }

@@ -423,21 +423,42 @@ namespace VektorVoxels.Chunks {
         
         /// <summary>
         /// Queues a light pass on this chunk.
+        /// Uses Unity Jobs scheduler for first pass if enabled, legacy system for neighbor passes.
         /// </summary>
         private void QueueLightPass(LightPass pass) {
+            var world = VoxelWorld.Instance;
+            var useUnityJobs = world != null && world.UseUnityJobsLighting && world.LightingScheduler != null;
+
             switch (pass) {
                 case LightPass.First: {
-                    GlobalThreadPool.DispatchJob(
-                        new LightJob(
-                            _jobSetCounter, 
-                            this, 
-                            new NeighborSet(_neighborBuffer, _neighborFlags),
-                            LightPass.First, _lightCallback1
-                        )
-                    );
+                    if (useUnityJobs) {
+                        // Unity Jobs scheduler handles internal lighting synchronously.
+                        // Execute on main thread and invoke callback immediately.
+                        _state = ChunkState.Lighting;
+                        bool success = world.LightingScheduler.ExecuteFirstPass(_chunkId);
+                        if (success) {
+                            // Sync light data from native arrays to managed arrays.
+                            world.LightingScheduler.SyncToManagedChunk(_chunkId);
+                        }
+                        // Invoke callback synchronously - it will update state, so return after.
+                        _lightCallback1?.Invoke();
+                        return;
+                    }
+                    else {
+                        // Fall back to legacy thread pool.
+                        GlobalThreadPool.DispatchJob(
+                            new LightJob(
+                                _jobSetCounter,
+                                this,
+                                new NeighborSet(_neighborBuffer, _neighborFlags),
+                                LightPass.First, _lightCallback1
+                            )
+                        );
+                    }
                     break;
                 }
                 case LightPass.Second: {
+                    // Neighbor lighting - use legacy system for now.
                     GlobalThreadPool.DispatchJob(
                         new LightJob(
                             _jobSetCounter,
@@ -449,6 +470,7 @@ namespace VektorVoxels.Chunks {
                     break;
                 }
                 case LightPass.Third: {
+                    // Neighbor lighting - use legacy system for now.
                     GlobalThreadPool.DispatchJob(
                         new LightJob(
                             _jobSetCounter,
@@ -463,7 +485,7 @@ namespace VektorVoxels.Chunks {
                     throw new ArgumentOutOfRangeException(nameof(pass), pass, null);
                 }
             }
-            
+
             _state = ChunkState.Lighting;
         }
         
@@ -476,15 +498,39 @@ namespace VektorVoxels.Chunks {
             }
             _latestMesh = Mesh.AllocateWritableMeshData(1);
             _latestMeshUsed = false;
-            GlobalThreadPool.DispatchJob(
-                new MeshJob(
-                    _jobSetCounter, 
-                    this, 
-                    new NeighborSet(_neighborBuffer, _neighborFlags),
-                    _latestMesh,
-                    _meshCallback
-                )
-            );
+
+            var world = VoxelWorld.Instance;
+            var useUnityJobs = world != null && world.UseUnityJobsMeshing && world.MeshingScheduler != null;
+
+            if (useUnityJobs) {
+                // Unity Jobs meshing scheduler runs synchronously.
+                _state = ChunkState.Meshing;
+
+                // Sync light data to native arrays before meshing (in case legacy lighting was used).
+                SyncLightToNativeData();
+
+                bool success = world.MeshingScheduler.ExecuteMeshing(_chunkId, world.UseSmoothLighting, ref _latestMesh);
+                if (!success) {
+                    Debug.LogWarning($"[Chunk] Unity Jobs meshing failed for chunk {_chunkId}");
+                }
+
+                // Invoke callback synchronously - it will update state, so return after.
+                _meshCallback?.Invoke();
+                return;
+            }
+            else {
+                // Fall back to legacy thread pool.
+                GlobalThreadPool.DispatchJob(
+                    new MeshJob(
+                        _jobSetCounter,
+                        this,
+                        new NeighborSet(_neighborBuffer, _neighborFlags),
+                        _latestMesh,
+                        _meshCallback
+                    )
+                );
+            }
+
             _state = ChunkState.Meshing;
         }
         

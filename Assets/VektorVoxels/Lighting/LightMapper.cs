@@ -214,6 +214,17 @@ namespace VektorVoxels.Lighting {
                     continue;
                 }
 
+                // Check if source is a translucent block - apply exit tinting.
+                // This handles light exiting colored glass into air below.
+                var sourceVoxel = voxelData[cpi];
+                int sr = nr, sg = ng, sb = nb;
+                if (!sourceVoxel.IsEmpty() && (sourceVoxel.Flags & VoxelFlags.AlphaRender) != 0) {
+                    sourceVoxel.ColorData.Decompose(out var mulR, out var mulG, out var mulB, out _);
+                    sr = (nr * mulR) >> 8;
+                    sg = (ng * mulG) >> 8;
+                    sb = (nb * mulB) >> 8;
+                }
+
                 // Process each neighbor.
                 for (var i = 0; i < 6; i++) {
                     // Grab neighbor voxel and light depending on locality.
@@ -234,14 +245,13 @@ namespace VektorVoxels.Lighting {
                     }
 
                     // Multiplicative attenuation to preserve color ratios (saturation).
-                    var dr = (nr * LIGHT_MULTIPLIER) >> 8;
-                    var dg = (ng * LIGHT_MULTIPLIER) >> 8;
-                    var db = (nb * LIGHT_MULTIPLIER) >> 8;
+                    // Use exit-tinted values (sr, sg, sb) instead of raw node values.
+                    var dr = (sr * LIGHT_MULTIPLIER) >> 8;
+                    var dg = (sg * LIGHT_MULTIPLIER) >> 8;
+                    var db = (sb * LIGHT_MULTIPLIER) >> 8;
 
-                    // Apply voxel-specific tint (e.g., colored glass).
+                    // Apply destination voxel tint (e.g., entering colored glass).
                     // Air voxels (Id = 0) don't have meaningful ColorData, treat as full pass-through.
-                    // For other voxels, ColorData stores the pass-through multiplier (255 = full pass, 0 = full block).
-                    // TODO: Air/empty can just have a white color, is this potential divergence worth it?
                     int ar, ag, ab;
                     if (neighbor.IsEmpty()) {
                         ar = dr;
@@ -249,10 +259,10 @@ namespace VektorVoxels.Lighting {
                         ab = db;
                     }
                     else {
-                        neighbor.ColorData.Decompose(out var mulR, out var mulG, out var mulB, out _);
-                        ar = (dr * mulR) >> 8;
-                        ag = (dg * mulG) >> 8;
-                        ab = (db * mulB) >> 8;
+                        neighbor.ColorData.Decompose(out var destR, out var destG, out var destB, out _);
+                        ar = (dr * destR) >> 8;
+                        ag = (dg * destG) >> 8;
+                        ab = (db * destB) >> 8;
                     }
 
                     // Skip if attenuated light is zero.
