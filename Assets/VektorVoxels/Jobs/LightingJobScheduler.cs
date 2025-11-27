@@ -33,6 +33,14 @@ namespace VektorVoxels.Jobs {
         private bool _initialized;
 
         /// <summary>
+        /// When true, uses 2 border passes instead of 3.
+        /// Pass 3 is only needed when light from multiple sources converges through
+        /// an intermediate chunk. In practice, 2 passes work for most scenarios.
+        /// Set to false for strict correctness, true for ~33% faster lighting.
+        /// </summary>
+        public bool UseTwoPassLighting = false;
+
+        /// <summary>
         /// Whether the scheduler is ready.
         /// </summary>
         public bool IsInitialized => _initialized;
@@ -253,9 +261,12 @@ namespace VektorVoxels.Jobs {
                 ExecuteBorderPass(chunkId);
             }
 
-            // Pass 3: Border propagation again (convergence)
-            foreach (var chunkId in chunkIds) {
-                ExecuteBorderPass(chunkId);
+            // Pass 3: Border propagation again (convergence for multi-source scenarios)
+            // Can be skipped when UseTwoPassLighting is true for ~33% faster lighting.
+            if (!UseTwoPassLighting) {
+                foreach (var chunkId in chunkIds) {
+                    ExecuteBorderPass(chunkId);
+                }
             }
 
             // Sync all to managed arrays

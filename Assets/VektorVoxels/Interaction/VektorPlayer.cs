@@ -1,7 +1,7 @@
 using System;
+using Input;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using VektorVoxels.Input;
 using VektorVoxels.UI;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Voxels;
@@ -282,8 +282,12 @@ namespace VektorVoxels.Interaction {
         }
 
         public void Teleport(Vector3 position) {
-            transform.position = position;
-            _voxelBody.Velocity = Vector3.zero;
+            _voxelBody.Teleport(position);
+        }
+
+        public void Teleport(Vector3 position, float yawDegrees) {
+            _voxelBody.Teleport(position);
+            _desiredLook.y = yawDegrees;
         }
     }
 }

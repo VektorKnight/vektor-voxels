@@ -7,7 +7,6 @@ using VektorVoxels.Data;
 using VektorVoxels.Generation;
 using VektorVoxels.Lighting;
 using VektorVoxels.Meshing;
-using VektorVoxels.Threading;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
 using Unity.Mathematics;
@@ -356,22 +355,14 @@ namespace VektorVoxels.Chunks {
         
         /// <summary>
         /// Queues the terrain generation pass on this chunk.
-        /// Uses Unity Jobs scheduler if enabled, otherwise falls back to legacy GenerationJob.
+        /// Uses Unity Jobs scheduler for Burst-compiled terrain generation.
         /// </summary>
         private void QueueGenerationPass() {
             _waitingForJob = true;
             _state = ChunkState.TerrainGeneration;
 
-            // Try Unity Jobs terrain generation if enabled
             var world = VoxelWorld.Instance;
-            if (world != null && world.UseUnityJobsTerrain && world.TerrainScheduler != null) {
-                // Schedule via Unity Jobs system
-                world.TerrainScheduler.ScheduleGeneration(_chunkId, OnUnityJobsGenerationComplete);
-            }
-            else {
-                // Fall back to legacy thread pool
-                GlobalThreadPool.DispatchJob(new GenerationJob(_jobSetCounter, this, _generationCallback));
-            }
+            world.TerrainScheduler.ScheduleGeneration(_chunkId, OnUnityJobsGenerationComplete);
         }
 
         /// <summary>
@@ -427,74 +418,39 @@ namespace VektorVoxels.Chunks {
         
         /// <summary>
         /// Queues a light pass on this chunk.
-        /// Uses Unity Jobs scheduler for first pass if enabled, legacy system for neighbor passes.
+        /// NOTE: With coordinated lighting, this is only called from CheckForNeighborState
+        /// as a fallback path. Normal lighting goes through VoxelWorld.QueueChunkForLighting.
         /// </summary>
         private void QueueLightPass(LightPass pass) {
             var world = VoxelWorld.Instance;
-            var useUnityJobs = world != null && world.UseUnityJobsLighting && world.LightingScheduler != null;
+
+            // All lighting now uses coordinated path through VoxelWorld.
+            // This fallback handles edge cases in the neighbor-waiting state machine.
+            _state = ChunkState.Lighting;
 
             switch (pass) {
                 case LightPass.First: {
-                    if (useUnityJobs) {
-                        // Unity Jobs scheduler handles internal lighting synchronously.
-                        // Execute on main thread and invoke callback immediately.
-                        _state = ChunkState.Lighting;
-                        bool success = world.LightingScheduler.ExecuteFirstPass(_chunkId);
-                        if (success) {
-                            // Sync light data from native arrays to managed arrays.
-                            world.LightingScheduler.SyncToManagedChunk(_chunkId);
-                        }
-                        // Invoke callback synchronously - it will update state, so return after.
-                        _lightCallback1?.Invoke();
-                        return;
+                    bool success = world.LightingScheduler.ExecuteFirstPass(_chunkId);
+                    if (success) {
+                        world.LightingScheduler.SyncToManagedChunk(_chunkId);
                     }
-                    else {
-                        // Fall back to legacy thread pool.
-                        GlobalThreadPool.DispatchJob(
-                            new LightJob(
-                                _jobSetCounter,
-                                this,
-                                new NeighborSet(_neighborBuffer, _neighborFlags),
-                                LightPass.First, _lightCallback1
-                            )
-                        );
-                    }
+                    _lightCallback1?.Invoke();
                     break;
                 }
-                case LightPass.Second: {
-                    // Neighbor lighting - use legacy system for now.
-                    GlobalThreadPool.DispatchJob(
-                        new LightJob(
-                            _jobSetCounter,
-                            this,
-                            new NeighborSet(_neighborBuffer, _neighborFlags),
-                            LightPass.Second, _lightCallback2
-                        )
-                    );
-                    break;
-                }
+                case LightPass.Second:
                 case LightPass.Third: {
-                    // Neighbor lighting - use legacy system for now.
-                    GlobalThreadPool.DispatchJob(
-                        new LightJob(
-                            _jobSetCounter,
-                            this,
-                            new NeighborSet(_neighborBuffer, _neighborFlags),
-                            LightPass.Third, _lightCallback3
-                        )
-                    );
+                    // For neighbor passes, queue for coordinated lighting instead.
+                    // This re-routes through the proper coordinated path.
+                    VoxelWorld.Instance.QueueChunkForLighting(this);
                     break;
                 }
                 default: {
                     throw new ArgumentOutOfRangeException(nameof(pass), pass, null);
                 }
             }
-
-            _state = ChunkState.Lighting;
         }
         
         private void QueueMeshPass() {
-            //_latestMesh.Dispose();
             if (!_latestMeshUsed) {
                 Debug.LogError("Overlapping jobs!");
                 _latestMesh.Dispose();
@@ -504,38 +460,17 @@ namespace VektorVoxels.Chunks {
             _latestMeshUsed = false;
 
             var world = VoxelWorld.Instance;
-            var useUnityJobs = world != null && world.UseUnityJobsMeshing && world.MeshingScheduler != null;
-
-            if (useUnityJobs) {
-                // Unity Jobs meshing scheduler runs synchronously.
-                _state = ChunkState.Meshing;
-
-                // Sync light data to native arrays before meshing (in case legacy lighting was used).
-                SyncLightToNativeData();
-
-                bool success = world.MeshingScheduler.ExecuteMeshing(_chunkId, world.UseSmoothLighting, ref _latestMesh);
-                if (!success) {
-                    Debug.LogWarning($"[Chunk] Unity Jobs meshing failed for chunk {_chunkId}");
-                }
-
-                // Invoke callback synchronously - it will update state, so return after.
-                _meshCallback?.Invoke();
-                return;
-            }
-            else {
-                // Fall back to legacy thread pool.
-                GlobalThreadPool.DispatchJob(
-                    new MeshJob(
-                        _jobSetCounter,
-                        this,
-                        new NeighborSet(_neighborBuffer, _neighborFlags),
-                        _latestMesh,
-                        _meshCallback
-                    )
-                );
-            }
-
             _state = ChunkState.Meshing;
+
+            // Sync light data to native arrays before meshing.
+            SyncLightToNativeData();
+
+            bool success = world.MeshingScheduler.ExecuteMeshing(_chunkId, world.UseSmoothLighting, ref _latestMesh);
+            if (!success) {
+                Debug.LogWarning($"[Chunk] Unity Jobs meshing failed for chunk {_chunkId}");
+            }
+
+            _meshCallback?.Invoke();
         }
 
         /// <summary>
@@ -758,9 +693,8 @@ namespace VektorVoxels.Chunks {
         /// <summary>
         /// Determines which neighbor indices need updating based on voxel position and type.
         /// Returns a bitmask where bit i indicates neighbor i needs updating.
-        /// TODO: Investigate if this is still causing propagation errors.
         /// </summary>
-        private int GetAffectedNeighbors(Vector3Int localPos, VoxelData data) {
+        private int GetAffectedNeighbors(Vector3Int localPos, VoxelData data, VoxelData oldData) {
             int affected = 0;
             var chunkSize = VoxelWorld.CHUNK_SIZE;
 
@@ -770,9 +704,13 @@ namespace VektorVoxels.Chunks {
             if (localPos.z == 0) affected |= (1 << 2);                    // South
             if (localPos.z == chunkSize.x - 1) affected |= (1 << 0);      // North
 
-            // Lighting is affected if a voxel is removed, is a light source, or is translucent.
-            bool affectsLight = data.IsEmpty() || data.IsLightSource() || !data.IsOpaque();
-            if (affectsLight) {
+            // Lighting is affected if:
+            // - New voxel lets light through (empty, transparent, or light source)
+            // - OR old voxel let light through (we're blocking an existing light path)
+            bool newAffectsLight = data.IsEmpty() || data.IsLightSource() || !data.IsOpaque();
+            bool oldAffectsLight = oldData.IsEmpty() || oldData.IsLightSource() || !oldData.IsOpaque();
+
+            if (newAffectsLight || oldAffectsLight) {
                 affected |= 0xF; // All 4 cardinals (bits 0-3)
             }
 
@@ -780,10 +718,26 @@ namespace VektorVoxels.Chunks {
         }
 
         /// <summary>
+        /// 2-hop neighbor offsets for extended light propagation.
+        /// Light can propagate ~30 blocks, spanning 2 chunks in cardinal directions.
+        /// </summary>
+        private static readonly Vector2Int[] _twoHopNeighbors = {
+            new Vector2Int(0, 2),   // North x2
+            new Vector2Int(2, 0),   // East x2
+            new Vector2Int(0, -2),  // South x2
+            new Vector2Int(-2, 0),  // West x2
+        };
+
+        /// <summary>
         /// Queues affected neighbors for coordinated lighting based on affected bitmask.
+        /// When light is affected, also queues 2-hop neighbors since light can propagate
+        /// ~30 blocks (spanning 2 chunks in each direction).
         /// </summary>
         private void UpdateAffectedNeighbors(int affectedMask) {
             if (affectedMask == 0) return;
+
+            // Check if this is a light-affecting change (all 4 cardinal bits set)
+            bool affectsLight = (affectedMask & 0xF) == 0xF;
 
             _neighborFlags = NeighborFlags.None;
             for (var i = 0; i < 4; i++) { // Only check cardinals (0-3)
@@ -809,6 +763,36 @@ namespace VektorVoxels.Chunks {
                 // Queue neighbor for coordinated lighting directly.
                 // VoxelWorld's HashSet prevents duplicates if already queued.
                 VoxelWorld.Instance.QueueChunkForLighting(neighbor);
+            }
+
+            // For light-affecting changes, also queue extended neighbors.
+            // Light can propagate ~30 blocks, reaching chunks 2 away in cardinal directions.
+            // It can also reach diagonal neighbors via cardinal paths.
+            if (affectsLight) {
+                // Queue 2-hop cardinal neighbors
+                for (var i = 0; i < 4; i++) {
+                    var twoHopId = _chunkId + _twoHopNeighbors[i];
+
+                    if (!VoxelWorld.Instance.IsChunkInView(twoHopId)) continue;
+                    if (!VoxelWorld.Instance.IsChunkInBounds(twoHopId)) continue;
+                    if (!VoxelWorld.Instance.IsChunkLoaded(twoHopId)) continue;
+
+                    var twoHopNeighbor = VoxelWorld.Instance.Chunks[twoHopId.x, twoHopId.y];
+                    VoxelWorld.Instance.QueueChunkForLighting(twoHopNeighbor);
+                }
+
+                // Queue 1-hop diagonal neighbors (indices 4-7 in _chunkNeighbors)
+                // Light reaching a corner can propagate through cardinals to diagonals.
+                for (var i = 4; i < 8; i++) {
+                    var diagId = _chunkId + _chunkNeighbors[i];
+
+                    if (!VoxelWorld.Instance.IsChunkInView(diagId)) continue;
+                    if (!VoxelWorld.Instance.IsChunkInBounds(diagId)) continue;
+                    if (!VoxelWorld.Instance.IsChunkLoaded(diagId)) continue;
+
+                    var diagNeighbor = VoxelWorld.Instance.Chunks[diagId.x, diagId.y];
+                    VoxelWorld.Instance.QueueChunkForLighting(diagNeighbor);
+                }
             }
         }
         
@@ -899,11 +883,13 @@ namespace VektorVoxels.Chunks {
                             continue;
                         }
 
-                        _voxelData[VoxelUtility.VoxelIndex(update.Position, d)] = update.Data;
+                        int voxelIdx = VoxelUtility.VoxelIndex(update.Position, d);
+                        var oldData = _voxelData[voxelIdx];
+                        _voxelData[voxelIdx] = update.Data;
                         UpdateHeightMapColumn(new Vector2Int(update.Position.x, update.Position.z));
 
                         // Accumulate which neighbors are affected by this update
-                        affectedNeighbors |= GetAffectedNeighbors(update.Position, update.Data);
+                        affectedNeighbors |= GetAffectedNeighbors(update.Position, update.Data, oldData);
                     }
 
                     _persistenceDirty = true;

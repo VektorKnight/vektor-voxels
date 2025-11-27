@@ -3,17 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using VektorVoxels.Chunks;
 using VektorVoxels.Generation;
-using VektorVoxels.Lighting;
-using VektorVoxels.Meshing;
-using VektorVoxels.Threading;
-using VektorVoxels.Threading.Jobs;
 using VektorVoxels.Voxels;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Persistence;
 using VektorVoxels.Data;
 using VektorVoxels.Jobs;
 using Unity.Mathematics;
-using Random = UnityEngine.Random;
 
 namespace VektorVoxels.World {
     /// <summary>
@@ -84,10 +79,6 @@ namespace VektorVoxels.World {
         // Unity Jobs meshing scheduler (Phase 4 migration).
         private MeshingJobScheduler _meshingScheduler;
 
-        [Header("Unity Jobs Migration")]
-        [SerializeField] private bool _useUnityJobsTerrain = true;
-        [SerializeField] private bool _useUnityJobsLighting = true;
-        [SerializeField] private bool _useUnityJobsMeshing = true;
 
         public WorldPersistence Persistence => _persistence;
         public bool IsWorldLoaded => _persistence?.IsWorldLoaded ?? false;
@@ -108,28 +99,11 @@ namespace VektorVoxels.World {
         /// </summary>
         public LightingJobScheduler LightingScheduler => _lightingScheduler;
 
-        /// <summary>
-        /// Whether to use Unity Jobs for terrain generation.
-        /// Toggle in inspector for A/B testing.
-        /// </summary>
-        public bool UseUnityJobsTerrain => _useUnityJobsTerrain;
-
-        /// <summary>
-        /// Whether to use Unity Jobs for lighting.
-        /// Toggle in inspector for A/B testing.
-        /// </summary>
-        public bool UseUnityJobsLighting => _useUnityJobsLighting;
 
         /// <summary>
         /// Burst-compiled meshing scheduler.
         /// </summary>
         public MeshingJobScheduler MeshingScheduler => _meshingScheduler;
-
-        /// <summary>
-        /// Whether to use Unity Jobs for meshing.
-        /// Toggle in inspector for A/B testing.
-        /// </summary>
-        public bool UseUnityJobsMeshing => _useUnityJobsMeshing;
 
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
@@ -317,27 +291,16 @@ namespace VektorVoxels.World {
             // Initialize Unity Jobs data store for migration.
             _chunkDataStore = new ChunkDataStore(new int2(_maxChunks.x, _maxChunks.y));
 
-            // Initialize Unity Jobs terrain scheduler with same layers as PerlinGenerator.
-            if (_useUnityJobsTerrain) {
-                _terrainScheduler = new TerrainJobScheduler();
-                var layers = GetDefaultTerrainLayers();
-                _terrainScheduler.Initialize(layers, 0.02f);
-            }
+            // Initialize Unity Jobs schedulers.
+            _terrainScheduler = new TerrainJobScheduler();
+            var layers = GetDefaultTerrainLayers();
+            _terrainScheduler.Initialize(layers, 0.02f);
 
-            // Initialize Unity Jobs lighting scheduler.
-            if (_useUnityJobsLighting) {
-                _lightingScheduler = new LightingJobScheduler();
-                _lightingScheduler.Initialize();
-            }
+            _lightingScheduler = new LightingJobScheduler();
+            _lightingScheduler.Initialize();
 
-            // Initialize Unity Jobs meshing scheduler.
-            if (_useUnityJobsMeshing) {
-                _meshingScheduler = new MeshingJobScheduler();
-                _meshingScheduler.Initialize();
-            }
-
-            // Configure thread pool throttled queue.
-            GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
+            _meshingScheduler = new MeshingJobScheduler();
+            _meshingScheduler.Initialize();
         }
 
         /// <summary>
@@ -380,6 +343,23 @@ namespace VektorVoxels.World {
         public bool LoadWorld(string name, out List<string> missingVoxels) {
             if (!_persistence.LoadWorld(name, out missingVoxels)) {
                 return false;
+            }
+
+            // Restore player position
+            if (_loadTransform != null && _persistence.WorldData != null) {
+                var data = _persistence.WorldData;
+                // Only restore if position was saved (non-zero check)
+                if (data.PlayerX != 0 || data.PlayerY != 0 || data.PlayerZ != 0) {
+                    // Use IPlayer.Teleport if available (handles VoxelBody properly)
+                    var player = _loadTransform.GetComponent<Interaction.IPlayer>();
+                    if (player != null) {
+                        player.Teleport(new Vector3(data.PlayerX, data.PlayerY, data.PlayerZ), data.PlayerRotationY);
+                    }
+                    else {
+                        _loadTransform.position = new Vector3(data.PlayerX, data.PlayerY, data.PlayerZ);
+                        _loadTransform.eulerAngles = new Vector3(0, data.PlayerRotationY, 0);
+                    }
+                }
             }
 
             // Clear all existing chunks so they reload from disk
@@ -437,7 +417,17 @@ namespace VektorVoxels.World {
                 }
             }
 
-            if (queuedCount > 0) {
+            // Save player position
+            if (_loadTransform != null) {
+                var pos = _loadTransform.position;
+                var rot = _loadTransform.eulerAngles;
+                _persistence.WorldData.PlayerX = pos.x;
+                _persistence.WorldData.PlayerY = pos.y;
+                _persistence.WorldData.PlayerZ = pos.z;
+                _persistence.WorldData.PlayerRotationY = rot.y;
+            }
+
+            if (queuedCount > 0 || _loadTransform != null) {
                 _persistence.SaveWorldMetadata();
                 Debug.Log($"[VoxelWorld] Queued {queuedCount} chunks for save ({_saveQueue.Count} total in queue).");
             }
@@ -504,6 +494,26 @@ namespace VektorVoxels.World {
         public void QueueChunkForLighting(Chunk chunk) {
             if (chunk == null) return;
             _lightingQueue.Add(chunk);
+        }
+
+        /// <summary>
+        /// Forces a complete refresh of all loaded chunks (re-light and re-mesh).
+        /// Minecraft-style fix for lighting bugs - press F5 to refresh.
+        /// </summary>
+        public void ForceRefreshAllChunks() {
+            var count = 0;
+            foreach (var chunk in _loadedChunks) {
+                if (chunk == null || chunk.State < ChunkState.Ready) continue;
+
+                // Clear existing light data and queue for full re-light
+                System.Array.Clear(chunk.SunLight, 0, chunk.SunLight.Length);
+                System.Array.Clear(chunk.BlockLight, 0, chunk.BlockLight.Length);
+                chunk.SyncLightToNativeData();
+
+                QueueChunkForLighting(chunk);
+                count++;
+            }
+            Debug.Log($"[VoxelWorld] Force refresh: queued {count} chunks for re-lighting (F5)");
         }
 
         /// <summary>
@@ -663,6 +673,21 @@ namespace VektorVoxels.World {
         }
 
         private void Update() {
+            // F5: Force refresh all chunks (Minecraft-style lighting fix)
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F5)) {
+                ForceRefreshAllChunks();
+            }
+            
+
+            // F6: Toggle two-pass lighting (experimental ~33% faster)
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F6)) {
+                if (_lightingScheduler != null) {
+                    _lightingScheduler.UseTwoPassLighting = !_lightingScheduler.UseTwoPassLighting;
+                    Debug.Log($"[VoxelWorld] Two-pass lighting: {_lightingScheduler.UseTwoPassLighting}");
+                    ForceRefreshAllChunks(); // Re-light to see the difference
+                }
+            }
+
             // Sort the loaded chunks only when load region changes.
             if (_needsSort) {
                 _loadedChunks.Sort(CompareChunks);
@@ -681,6 +706,9 @@ namespace VektorVoxels.World {
 
             // Process save queue (one chunk per frame when ready).
             ProcessSaveQueue();
+
+            // Process persistence callbacks (async save completions).
+            _persistence.ProcessCallbacks();
 
             // Auto-save dirty chunks on interval
             if (IsWorldLoaded) {
@@ -701,6 +729,16 @@ namespace VektorVoxels.World {
         private void OnApplicationQuit() {
             // Save all dirty chunks on quit (synchronously - can't rely on async on exit).
             if (IsWorldLoaded) {
+                // Save player position
+                if (_loadTransform != null) {
+                    var pos = _loadTransform.position;
+                    var rot = _loadTransform.eulerAngles;
+                    _persistence.WorldData.PlayerX = pos.x;
+                    _persistence.WorldData.PlayerY = pos.y;
+                    _persistence.WorldData.PlayerZ = pos.z;
+                    _persistence.WorldData.PlayerRotationY = rot.y;
+                }
+
                 // First, flush any queued chunks.
                 var queuedCount = _saveQueue.Count;
                 while (_saveQueue.Count > 0) {

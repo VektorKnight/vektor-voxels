@@ -13,6 +13,12 @@ namespace VektorVoxels.Persistence {
         public string LastSaved;
         public Dictionary<ushort, string> VoxelMapping;
 
+        // Player position (restored on load)
+        public float PlayerX;
+        public float PlayerY;
+        public float PlayerZ;
+        public float PlayerRotationY;
+
         public WorldSaveData() {
             VoxelMapping = new Dictionary<ushort, string>();
         }

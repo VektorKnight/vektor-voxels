@@ -6,10 +6,56 @@ Track active work for continuity across sessions.
 
 ## Active Work
 
+### Lighting Stabilization
+**Status:** active
+**Started:** 2025-11-27
+**Updated:** 2025-11-27
+
+**Goals:**
+1. Fix ghost light bug (light removal doesn't cascade to neighbors)
+2. Test if Pass 3 is redundant (may be able to reduce to 2 passes)
+3. Ensure deterministic, bug-free lighting at chunk boundaries
+
+**Planning Document:** `docs/chunk_pipeline_audit.md`
+
+**Current State:**
+Unity Jobs migration complete. Core pipeline functional. Ghost light bug fix implemented. Two-pass lighting toggle added.
+
+**Key Decisions (this session):**
+- **Stabilize before experimenting** - GPU lightmaps discussed but deferred. Fix current bugs first, then consider architectural changes.
+- **F5 refresh added** - Minecraft-style workaround for lighting bugs. Press F5 to force re-light all chunks.
+- **F6 toggle added** - Switch between 2-pass and 3-pass lighting for testing.
+- **Project is a research sandbox** - Updated CLAUDE.md to reflect ongoing exploration rather than static reference.
+
+**Fixes Implemented (this session):**
+- [x] Ghost light bug (part 1) - Root cause was NOT in `LightRemovalJob` (which is dead code). The actual issue: light can propagate ~30 blocks (spanning 2 chunks), but only 1-hop neighbors were queued for relighting. Fix: `UpdateAffectedNeighbors` now queues 2-hop cardinal neighbors AND diagonal neighbors for light-affecting changes. Up to 13 chunks can be queued per light change (HashSet dedupes).
+- [x] Ghost light bug (part 2) - Placing an opaque block to close a hole wasn't triggering extended neighbor queueing. The check only looked at NEW voxel data (`data.IsEmpty() || !data.IsOpaque()`), missing the case where OLD voxel was transparent. Fix: `GetAffectedNeighbors` now takes `oldData` parameter and checks both old and new voxel states.
+- [x] Two-pass lighting toggle - Added `UseTwoPassLighting` flag to `LightingJobScheduler`. F6 toggles at runtime. Pass 3 is only needed when light from multiple sources converges through an intermediate chunk.
+
+**Architectural Discussion (2025-11-27):**
+Discussed GPU lightmaps (upload light as 3D texture, sample in shader instead of baking to vertices). Benefits: decouples lighting from meshing, enables dynamic lighting, smaller vertices. Deferred because:
+1. Propagation bugs are orthogonal - need fixing regardless of render approach
+2. Significant scope (shader rewrite, texture management, smooth lighting changes)
+3. Better to have stable baseline before experimenting
+
+Also discussed "update propagation wave" with explicit dependency graphs. Current system already does coordinated passes but implicitly. Key insight: **we're not missing a dependency graph, we're missing proper incremental updates.** Current system batches everything and recomputes. Smarter approach would track what changed and propagate minimally. Also deferred - fix bugs in current model first.
+
+**Dead Code Identified:**
+- `LightRemovalJob` and `RemoveLight()` in `LightingJobScheduler` are never called. The actual flow uses `ExecuteFullLighting` which clears and regenerates via Pass 1.
+- `AddLight()` similarly unused. Both kept for potential future incremental update optimization.
+
+**Next Steps:**
+- [x] Fix ghost light bug - extended neighbor queueing to 2-hop + diagonals
+- [x] Add Pass 3 toggle - F6 switches between 2-pass and 3-pass
+- [ ] Test two-pass mode for visual artifacts with multiple light sources
+- [ ] Verify boundary edge cases with stress testing
+
+---
+
 ### Unity Jobs + Burst Rearchitecture
-**Status:** active (Phase 6 in progress)
+**Status:** completed
 **Started:** 2025-11-25
-**Updated:** 2025-11-26
+**Updated:** 2025-11-27
 
 **Goals:**
 1. Replace custom thread pool with Unity Job System
@@ -20,8 +66,8 @@ Track active work for continuity across sessions.
 
 **Planning Document:** `docs/unity_jobs_rearchitecture.md`
 
-**Current State:**
-Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing now running via Unity Jobs. Each system has inspector toggle for A/B testing. User reports noticeable performance improvement and some lighting bugs appear fixed.
+**Final State:**
+All phases complete. Legacy threading system fully removed. Burst-compiled terrain, lighting, and meshing running via Unity Jobs with coordinated multi-pass scheduling.
 
 **Key Decisions:**
 - Keep dual meshing paths (greedy flat / standard smooth) - no GPU lightmaps
@@ -86,35 +132,59 @@ Phases 2-4 complete! Burst-compiled terrain, lighting (first pass), and meshing 
 - [x] Full system audit (threading, meshing, lighting, terrain gen)
 - [x] Created comprehensive rearchitecture plan
 
-**Known Bugs (to be fixed by rearchitecture):**
-- Light removal doesn't cascade to neighbors (ghost light remains)
+**Known Bugs:**
+- ~~Light removal doesn't cascade to neighbors (ghost light remains)~~ - Active focus for next session
 - ~~Mystery multi-second hitch~~ - FIXED: Was GC from SaveChunkAsync allocating per-chunk
 - ~~Cross-chunk lighting breaks after modification~~ - FIXED: Coordinated lighting system eliminates race conditions
 
-**Next Session Entry Point:**
-Coordinated lighting system complete. Remaining work:
-- Option A: Remove legacy threading system (GlobalThreadPool, VektorJob, etc.) - code is unused now
-- Option B: Fix light removal cascade bug (ghost light when removing light sources)
-- Option C: Further polish and optimization
+**Workarounds Added:**
+- F5 force refresh - clears all light data and re-lights all loaded chunks (Minecraft-style)
+
+**Session 2025-11-27 Changes:**
+- Created `docs/chunk_pipeline_audit.md` - comprehensive technical audit for peer review
+- Updated `CLAUDE.md` - added collaboration style section, updated project description and architecture
+- Added `VoxelWorld.ForceRefreshAllChunks()` - F5 keybind for force refresh
+
+**Legacy Threading System Removal (2025-11-26):**
+- [x] Replaced GlobalThreadPool in WorldPersistence with Task.Run + ConcurrentQueue callbacks
+- [x] Added WorldPersistence.ProcessCallbacks() for main-thread callback dispatch
+- [x] Removed legacy fallbacks in Chunk.cs (QueueGenerationPass, QueueLightPass, QueueMeshPass)
+- [x] Removed Unity Jobs toggle fields and accessors (_useUnityJobsTerrain, etc.)
+- [x] Deleted entire Threading folder (GlobalThreadPool, VektorJob, WorkerThread, etc.)
+- [x] Deleted domain job files (GenerationJob.cs, LightJob.cs, MeshJob.cs)
+
+**Player Position Save/Restore (2025-11-26):**
+- [x] Added PlayerX, PlayerY, PlayerZ, PlayerRotationY to WorldSaveData
+- [x] Fixed VoxelBody.Teleport() - must update _currentPosition/_previousPosition (interpolation was overwriting transform.position)
+- [x] Fixed SerializeWorldData() - was missing player position fields in manual JSON construction
+- [x] Added IPlayer.Teleport(position, yawDegrees) overload for rotation restore
+- [x] VektorPlayer.Teleport now sets _desiredLook.y for camera rotation
 
 **New Files This Session:**
 - `Assets/VektorVoxels/Data/ChunkData.cs` - Native chunk data struct
 - `Assets/VektorVoxels/Data/ChunkDataStore.cs` - World data management
 - `Assets/VektorVoxels/Jobs/TerrainGenerationJob.cs` - Burst terrain job
 - `Assets/VektorVoxels/Jobs/TerrainJobScheduler.cs` - Terrain job lifecycle manager
-- `Assets/VektorVoxels/Jobs/LightingJobs.cs` - Burst lighting jobs (4 job types)
+- `Assets/VektorVoxels/Jobs/LightingJobs.cs` - Burst lighting jobs (4 job types + BorderSeedJob)
 - `Assets/VektorVoxels/Jobs/LightingJobScheduler.cs` - Lighting job lifecycle manager
 - `Assets/VektorVoxels/Jobs/MeshingJobs.cs` - Burst meshing job
 - `Assets/VektorVoxels/Jobs/MeshingJobScheduler.cs` - Meshing job lifecycle manager
+
+**Deleted Files (Legacy Threading System):**
+- `Assets/VektorVoxels/Threading/` - Entire folder (GlobalThreadPool, VektorJob, WorkerThread, etc.)
+- `Assets/VektorVoxels/Generation/GenerationJob.cs` - Legacy terrain job
+- `Assets/VektorVoxels/Lighting/LightJob.cs` - Legacy lighting job
+- `Assets/VektorVoxels/Meshing/MeshJob.cs` - Legacy meshing job
 
 **Phases:**
 - [x] Planning and audit
 - [x] Phase 1: Data Layer Conversion
 - [x] Phase 2: Terrain Generation Jobs
-- [x] Phase 3: Lighting System Rearchitecture (first pass only)
+- [x] Phase 3: Lighting System Rearchitecture (coordinated multi-pass)
 - [x] Phase 4: Meshing System Conversion
-- [ ] Phase 5: Main Thread Integration (async scheduling, batching)
-- [x] Phase 6: Persistence Polish (GC fix verified working)
+- [x] Phase 5: Main Thread Integration (coordinated lighting queue)
+- [x] Phase 6: Persistence Polish (GC fix + player position)
+- [x] Phase 7: Legacy System Removal (Threading folder purged)
 
 ---
 

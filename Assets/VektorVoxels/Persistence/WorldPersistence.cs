@@ -1,15 +1,16 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using UnityEngine;
 using VektorVoxels.Chunks;
-using VektorVoxels.Threading;
 using VektorVoxels.Voxels;
 
 namespace VektorVoxels.Persistence {
     /// <summary>
     /// Manages world persistence: saving/loading world metadata and chunk data.
-    /// Supports async chunk saving via thread pool.
+    /// Supports async chunk saving via Task.Run with main-thread callbacks.
     /// </summary>
     public class WorldPersistence {
         private readonly string _worldsRoot;
@@ -22,6 +23,9 @@ namespace VektorVoxels.Persistence {
         private VoxelData[] _saveBuffer;
         private bool _saveInProgress;
 
+        // Thread-safe callback queue for main thread execution.
+        private readonly ConcurrentQueue<Action> _mainThreadCallbacks = new ConcurrentQueue<Action>();
+
         public WorldSaveData WorldData => _worldData;
         public bool IsWorldLoaded => _worldData != null;
         public string CurrentWorldName => _worldData?.Name;
@@ -31,6 +35,15 @@ namespace VektorVoxels.Persistence {
         /// Used for throttling saves to prevent GC spikes.
         /// </summary>
         public bool SaveInProgress => _saveInProgress;
+
+        /// <summary>
+        /// Processes pending main-thread callbacks. Call from Update().
+        /// </summary>
+        public void ProcessCallbacks() {
+            while (_mainThreadCallbacks.TryDequeue(out var callback)) {
+                callback?.Invoke();
+            }
+        }
 
         public WorldPersistence() {
             _worldsRoot = Path.Combine(Application.persistentDataPath, "worlds");
@@ -229,7 +242,7 @@ namespace VektorVoxels.Persistence {
 
             var path = GetChunkPath(chunkPos);
 
-            GlobalThreadPool.DispatchAction(() => {
+            Task.Run(() => {
                 try {
                     var serialized = ChunkSerializer.Serialize(chunkPos, dataCopy);
                     File.WriteAllBytes(path, serialized);
@@ -237,7 +250,10 @@ namespace VektorVoxels.Persistence {
                 catch (Exception e) {
                     Debug.LogError($"[WorldPersistence] Failed to save chunk {chunkPos} async: {e.Message}");
                 }
-            }, onComplete);
+                finally {
+                    if (onComplete != null) _mainThreadCallbacks.Enqueue(onComplete);
+                }
+            });
         }
 
         /// <summary>
@@ -265,7 +281,7 @@ namespace VektorVoxels.Persistence {
             var path = GetChunkPath(chunkPos);
             var buffer = _saveBuffer; // Capture for closure.
 
-            GlobalThreadPool.DispatchAction(() => {
+            Task.Run(() => {
                 try {
                     var serialized = ChunkSerializer.Serialize(chunkPos, buffer);
                     File.WriteAllBytes(path, serialized);
@@ -273,9 +289,12 @@ namespace VektorVoxels.Persistence {
                 catch (Exception e) {
                     Debug.LogError($"[WorldPersistence] Failed to save chunk {chunkPos} async: {e.Message}");
                 }
-            }, () => {
-                _saveInProgress = false;
-                onComplete?.Invoke();
+                finally {
+                    _mainThreadCallbacks.Enqueue(() => {
+                        _saveInProgress = false;
+                        onComplete?.Invoke();
+                    });
+                }
             });
 
             return true;
@@ -314,7 +333,7 @@ namespace VektorVoxels.Persistence {
             var path = GetChunkPath(chunkPos);
             var buffer = _saveBuffer;
 
-            GlobalThreadPool.DispatchAction(() => {
+            Task.Run(() => {
                 try {
                     var serialized = ChunkSerializer.Serialize(chunkPos, buffer);
                     File.WriteAllBytes(path, serialized);
@@ -322,9 +341,12 @@ namespace VektorVoxels.Persistence {
                 catch (Exception e) {
                     Debug.LogError($"[WorldPersistence] Failed to save chunk {chunkPos} async: {e.Message}");
                 }
-            }, () => {
-                _saveInProgress = false;
-                onComplete?.Invoke();
+                finally {
+                    _mainThreadCallbacks.Enqueue(() => {
+                        _saveInProgress = false;
+                        onComplete?.Invoke();
+                    });
+                }
             });
 
             return true;
@@ -370,11 +392,18 @@ namespace VektorVoxels.Persistence {
                 mappingJson.Add($"\"{kvp.Key}\": \"{kvp.Value}\"");
             }
 
+            // Use InvariantCulture for float formatting to avoid locale issues
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+
             return $@"{{
     ""Name"": ""{data.Name}"",
     ""Seed"": {data.Seed},
     ""CreatedAt"": ""{data.CreatedAt}"",
     ""LastSaved"": ""{data.LastSaved}"",
+    ""PlayerX"": {data.PlayerX.ToString(culture)},
+    ""PlayerY"": {data.PlayerY.ToString(culture)},
+    ""PlayerZ"": {data.PlayerZ.ToString(culture)},
+    ""PlayerRotationY"": {data.PlayerRotationY.ToString(culture)},
     ""VoxelMapping"": {{
         {string.Join(",\n        ", mappingJson)}
     }}

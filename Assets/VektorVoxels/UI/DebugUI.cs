@@ -4,7 +4,6 @@ using AudioTerrain;
 using UnityEngine;
 using UnityEngine.UI;
 using VektorVoxels.Debugging;
-using VektorVoxels.Threading;
 using VektorVoxels.World;
 using Debug = UnityEngine.Debug;
 
@@ -50,10 +49,15 @@ namespace VektorVoxels.UI {
             var position = _player.position;
             var chunk = VoxelWorld.Instance.WorldToChunkPos(position);
             
+            var lightingMode = VoxelWorld.Instance.LightingScheduler?.UseTwoPassLighting ?? false
+                ? "2-pass (F6)"
+                : "3-pass (F6)";
+
             _upperLeft.text = $"{Application.productName} | {Application.version}\n" +
                               $"FPS: {1f / Time.deltaTime:n0}\n" +
                               $"Chunks/Tick: {VoxelWorld.Instance.ChunksPerTick}\n" +
                               $"View: {VoxelWorld.Instance.ViewDistance}\n" +
+                              $"Lighting: {lightingMode}\n" +
                               $"World: {_player.transform.position}\n" +
                               $"Chunk: {chunk}";
         }

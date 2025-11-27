@@ -196,6 +196,17 @@ namespace VektorVoxels.VoxelPhysics {
             _velocity += force * Time.fixedDeltaTime;
         }
 
+        /// <summary>
+        /// Teleport to a position, resetting internal position tracking.
+        /// </summary>
+        public void Teleport(Vector3 position) {
+            _currentPosition = position;
+            _previousPosition = position;
+            transform.position = position;
+            _velocity = Vector3.zero;
+            _grounded = false;
+        }
+
         private void OnDrawGizmosSelected() {
             Gizmos.color = _grounded ? Color.green : Color.yellow;
             Gizmos.DrawWireCube(transform.position + _offset, _size);
