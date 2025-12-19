@@ -1,7 +1,10 @@
 ﻿using System;
 
 namespace VektorVoxels.Meshing {
-    // Pretty much used to clean up the neighbor data function.
+    /// <summary>
+    /// Cardinal and diagonal neighbor directions as a flags enum.
+    /// Used for neighbor lookup indexing and bitmask operations.
+    /// </summary>
     [Flags]
     public enum NeighborOffset {
         None = 0,

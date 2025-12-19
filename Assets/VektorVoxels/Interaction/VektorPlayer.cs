@@ -281,7 +281,7 @@ namespace VektorVoxels.Interaction {
         }
 
         public void SetHandVoxel(VoxelDefinition definition) {
-            throw new System.NotImplementedException();
+            _selectedVoxel = definition;
         }
 
         public void Teleport(Vector3 position) {

@@ -30,7 +30,7 @@ namespace VektorVoxels.Chunks {
         private MeshFilter _meshFilter;
         private MeshRenderer _meshRenderer;
         
-        // Lightmapper and mesher instances.
+        // Mesh output buffers.
         private Mesh _mesh;
         private Mesh.MeshDataArray _latestMesh;
         private bool _latestMeshUsed = true;
@@ -178,7 +178,7 @@ namespace VektorVoxels.Chunks {
             // Register with world events.
             VoxelWorld.OnWorldEvent += WorldEventHandler;
 
-            // Allocate native data for Unity Jobs migration.
+            // Allocate native data for Unity Jobs.
             AllocateNativeData();
 
             // Queue generation pass.
@@ -239,7 +239,7 @@ namespace VektorVoxels.Chunks {
             // Register with world events.
             VoxelWorld.OnWorldEvent += WorldEventHandler;
 
-            // Allocate native data for Unity Jobs migration.
+            // Allocate native data for Unity Jobs.
             AllocateNativeData();
 
             // Rebuild heightmap (skip generation)
@@ -373,8 +373,7 @@ namespace VektorVoxels.Chunks {
         /// Syncs data from native arrays and triggers lighting.
         /// </summary>
         private void OnUnityJobsGenerationComplete(Vector2Int chunkId) {
-            // The scheduler already synced voxels/heightmap to managed arrays.
-            // Now trigger the same flow as the legacy callback.
+            // Scheduler synced voxels/heightmap to managed arrays. Invoke generation callback.
             _generationCallback?.Invoke();
         }
         
@@ -415,19 +414,18 @@ namespace VektorVoxels.Chunks {
             // Unsubscribe from neighbor events when unloading.
             UnsubscribeFromNeighborEvents();
 
-            //_meshRenderer.enabled = false;
             _meshRenderer.forceRenderingOff = true;
         }
         
         /// <summary>
         /// Queues a light pass on this chunk.
-        /// NOTE: With coordinated lighting, this is only called from CheckForNeighborState
-        /// as a fallback path. Normal lighting goes through VoxelWorld.QueueChunkForLighting.
+        /// Only called from CheckForNeighborState as a fallback path; normal lighting
+        /// goes through VoxelWorld.QueueChunkForLighting for coordinated multi-pass.
         /// </summary>
         private void QueueLightPass(LightPass pass) {
             var world = VoxelWorld.Instance;
 
-            // All lighting now uses coordinated path through VoxelWorld.
+            // Coordinated path through VoxelWorld handles lighting.
             // This fallback handles edge cases in the neighbor-waiting state machine.
             _state = ChunkState.Lighting;
 
@@ -581,11 +579,6 @@ namespace VektorVoxels.Chunks {
             }
         }
 
-        public void SetLatestMeshData(Mesh.MeshDataArray data) {
-            //_latestMesh.Dispose();
-            _latestMesh = data;
-        }
-        
         /// <summary>
         /// Called when a mesh pass has completed.
         /// </summary>
@@ -854,7 +847,7 @@ namespace VektorVoxels.Chunks {
             }
 
             // Poll for newly available neighbors if we completed with partial lighting.
-            // When all neighbors are now available and have completed lighting, trigger reload.
+            // When all neighbors become available and complete lighting, trigger reload.
             if (_state == ChunkState.Ready && _partialLoad && Time.frameCount % 30 == 0) {
                 if (CheckAllNeighborsReady()) {
                     _waitingForReload = true;
@@ -922,7 +915,7 @@ namespace VektorVoxels.Chunks {
             }
         }
 
-        #region Unity Jobs Bridge (Phase 1 Migration)
+        #region Unity Jobs Bridge
 
         /// <summary>
         /// Allocates this chunk's data in the ChunkDataStore.
@@ -1041,7 +1034,7 @@ namespace VektorVoxels.Chunks {
             // Unsubscribe from neighbor events.
             UnsubscribeFromNeighborEvents();
 
-            // Deallocate native data for Unity Jobs migration.
+            // Deallocate native data from Unity Jobs data store.
             DeallocateNativeData();
 
             // Dispose the thread lock (implements IDisposable).

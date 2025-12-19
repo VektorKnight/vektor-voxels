@@ -1,7 +1,7 @@
 ﻿namespace VektorVoxels.Config {
     /// <summary>
     /// Contains global configuration constants for the engine.
-    /// Most of these should not be messed with if you don't know what you're doing.
+    /// Modifying these may affect threading, memory usage, and stability.
     /// </summary>
     public static class GlobalConstants {
         /// <summary>

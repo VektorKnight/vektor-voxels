@@ -59,15 +59,6 @@ namespace VektorVoxels.UI {
             if (!_initialized) return;
             
             _compass.rectTransform.rotation = Quaternion.Euler(0, 0, _player.RotationEuler.y);
-
-            //if (Input.GetKeyDown(KeyCode.LeftBracket)) {
-                //CycleHotBar(-1);
-            //}
-            //else if (Input.GetKeyDown(KeyCode.RightBracket)) {
-                //CycleHotBar(1);
-            //}
-
-            //CycleHotBar(Mathf.RoundToInt(Input.mouseScrollDelta.y));
         }
     }
 }

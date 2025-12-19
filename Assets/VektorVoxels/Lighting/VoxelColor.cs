@@ -309,12 +309,6 @@ namespace VektorVoxels.Lighting {
             return new VoxelColor(r, g, b);
         }
 
-        /// <summary>
-        /// Legacy method - use AnyChannelGreater instead.
-        /// </summary>
-        [Obsolete("Use AnyChannelGreater for clarity")]
-        public bool Compare(VoxelColor other) => AnyChannelGreater(other);
-
         public string ToString(string format, IFormatProvider formatProvider) {
             Decompose(out var r, out var g, out var b);
             return $"R: {r}, G: {g}, B: {b}";

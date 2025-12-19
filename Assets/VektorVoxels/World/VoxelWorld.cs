@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 using VektorVoxels.Chunks;
-using VektorVoxels.Generation;
 using VektorVoxels.Voxels;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Persistence;
 using VektorVoxels.Data;
 using VektorVoxels.Jobs;
 using Unity.Mathematics;
+using VektorVoxels.Generation;
 
 namespace VektorVoxels.World {
     /// <summary>
@@ -44,10 +44,9 @@ namespace VektorVoxels.World {
         [Header("Performance")] 
         [SerializeField] private int _chunksPerTick = 4;
 
-        private ITerrainGenerator _generator;
         private Chunk[,] _chunks;
         private LoadRect _loadRect;
-        // NOTE: Chunk ID = array index (0 to MaxChunks). Chunk Pos = world-centered (-MaxChunks/2 to +MaxChunks/2).
+        // Chunk ID = array index (0 to MaxChunks-1). Chunk Pos = world-centered (-MaxChunks/2 to +MaxChunks/2-1).
         private List<Chunk> _loadedChunks;
         private List<Chunk> _chunksToLoad;
         private Queue<Chunk> _loadQueue;
@@ -67,16 +66,10 @@ namespace VektorVoxels.World {
         private HashSet<Chunk> _lightingQueue;
         private List<int2> _lightingBatch; // Reusable list for ExecuteFullLighting
 
-        // Unity Jobs data store (Phase 1 migration).
+        // Unity Jobs systems.
         private ChunkDataStore _chunkDataStore;
-
-        // Unity Jobs terrain scheduler (Phase 2 migration).
         private TerrainJobScheduler _terrainScheduler;
-
-        // Unity Jobs lighting scheduler (Phase 3 migration).
         private LightingJobScheduler _lightingScheduler;
-
-        // Unity Jobs meshing scheduler (Phase 4 migration).
         private MeshingJobScheduler _meshingScheduler;
 
 
@@ -85,7 +78,6 @@ namespace VektorVoxels.World {
 
         /// <summary>
         /// Native container storage for Unity Jobs system.
-        /// Used during migration from managed arrays to NativeArrays.
         /// </summary>
         public ChunkDataStore ChunkDataStore => _chunkDataStore;
 
@@ -115,7 +107,6 @@ namespace VektorVoxels.World {
         public int SeaLevel => _seaLevel;
         public int ViewDistance => _viewDistance;
 
-        public ITerrainGenerator Generator => _generator;
         public Chunk[,] Chunks => _chunks;
         public LoadRect LoadRect => _loadRect;
 
@@ -275,7 +266,6 @@ namespace VektorVoxels.World {
             // Limit max framerate to 360 cause coil whine is annoying.
             Application.targetFrameRate = 360;
 
-            _generator = PerlinGenerator.Default();
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
             _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);
             _loadedChunks = new List<Chunk>();
@@ -288,7 +278,7 @@ namespace VektorVoxels.World {
             _lightingQueue = new HashSet<Chunk>();
             _lightingBatch = new List<int2>();
 
-            // Initialize Unity Jobs data store for migration.
+            // Initialize Unity Jobs data store.
             _chunkDataStore = new ChunkDataStore(new int2(_maxChunks.x, _maxChunks.y));
 
             // Initialize Unity Jobs schedulers.
@@ -305,7 +295,7 @@ namespace VektorVoxels.World {
 
         /// <summary>
         /// Creates the default terrain layer configuration.
-        /// Matches PerlinGenerator.Default() for consistency.
+        /// Layers are applied bottom-to-top during terrain generation.
         /// </summary>
         private VoxelLayer[] GetDefaultTerrainLayers() {
             var bedrock = VoxelTable.GetVoxelDefinition("bedrock");
@@ -461,11 +451,11 @@ namespace VektorVoxels.World {
                 _chunkDataStore.CopyVoxelsTo(chunkId, buffer);
             }
             else {
-                // Fallback to legacy managed array if not in ChunkDataStore.
+                // Fallback to managed array if chunk not in ChunkDataStore.
                 Array.Copy(chunk.VoxelData, buffer, buffer.Length);
             }
 
-            // Dequeue now that we've captured the data.
+            // Data captured, safe to dequeue.
             _saveQueue.Dequeue();
             _saveQueueSet.Remove(chunk);
 

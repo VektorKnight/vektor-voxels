@@ -25,7 +25,6 @@ namespace VektorVoxels.UI {
             _canvas = GetComponent<Canvas>();
 
             _upperRight.text = $"{SystemInfo.processorType.Trim()}\n" +
-                               //$"{SystemInfo.graphicsDeviceName} | {SystemInfo.graphicsDeviceType}\n" +
                                $"{SystemInfo.operatingSystem}\n" +
                                $"Unity {Application.unityVersion}";
 
@@ -36,10 +35,6 @@ namespace VektorVoxels.UI {
         }
 
         private void Update() {
-            //if (Input.GetKeyDown(KeyCode.F3)) {
-                //_canvas.enabled = !_canvas.enabled;
-            //}
-            
             _profiler.PushFrameTime(Time.deltaTime);
 
             if (!_canvas.enabled) {

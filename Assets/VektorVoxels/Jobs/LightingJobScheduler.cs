@@ -20,7 +20,7 @@ namespace VektorVoxels.Jobs {
     /// 2. BlockLightSourceJob - Finds light source blocks
     /// 3. LightPropagationJob - Propagates from all seeds
     ///
-    /// Phase 2+ (neighbor lighting) still uses legacy system for now.
+    /// Phase 2+ (neighbor lighting) uses BorderSeedJob for cross-chunk propagation.
     /// </summary>
     public class LightingJobScheduler : IDisposable {
         // Reusable queues (allocated once, cleared between uses)

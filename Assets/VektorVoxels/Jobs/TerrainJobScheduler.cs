@@ -13,7 +13,7 @@ using VektorVoxels.World;
 namespace VektorVoxels.Jobs {
     /// <summary>
     /// Schedules and manages Burst-compiled terrain generation jobs.
-    /// Bridges between the legacy chunk system and the new Unity Jobs system.
+    /// Coordinates between the Chunk managed arrays and NativeArrays for Unity Jobs.
     ///
     /// Lifecycle:
     /// 1. Initialize with layer configuration (converts to NativeArrays)
@@ -170,7 +170,7 @@ namespace VektorVoxels.Jobs {
         }
 
         /// <summary>
-        /// Syncs generated data from NativeArrays to the legacy Chunk's managed arrays.
+        /// Syncs generated data from NativeArrays to the Chunk's managed arrays.
         /// </summary>
         private void SyncToManagedChunk(Vector2Int chunkId) {
             var store = VoxelWorld.Instance?.ChunkDataStore;

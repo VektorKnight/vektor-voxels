@@ -28,7 +28,7 @@ namespace VektorVoxels.Jobs {
     }
 
     /// <summary>
-    /// Constants for light propagation matching LightMapper.
+    /// Constants for light propagation across all lighting jobs.
     /// </summary>
     public static class LightConstants {
         /// <summary>

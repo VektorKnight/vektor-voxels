@@ -7,9 +7,8 @@ using VektorVoxels.Voxels;
 
 namespace VektorVoxels.Data {
     /// <summary>
-    /// Central storage for all chunk data using NativeContainers.
-    /// Designed to work alongside the existing Chunk system during migration,
-    /// eventually replacing it entirely.
+    /// Central storage for all chunk data using NativeContainers for Unity Jobs.
+    /// Works alongside the managed Chunk arrays, with data synced between systems.
     ///
     /// Memory budget (64x64 world, all chunks loaded):
     /// - Per chunk: ~768 KB
@@ -202,7 +201,7 @@ namespace VektorVoxels.Data {
 
         /// <summary>
         /// Copies voxel data from a managed array into the chunk's NativeArray.
-        /// Used for bridging with the legacy Chunk system.
+        /// Syncs data between Chunk managed arrays and NativeArrays for Unity Jobs.
         /// </summary>
         public void CopyVoxelsFrom(int2 chunkId, VoxelData[] source) {
             if (!IsAllocated(chunkId)) return;
@@ -213,7 +212,7 @@ namespace VektorVoxels.Data {
 
         /// <summary>
         /// Copies voxel data from the chunk's NativeArray to a managed array.
-        /// Used for bridging with the legacy Chunk system.
+        /// Syncs data between NativeArrays and Chunk managed arrays.
         /// </summary>
         public void CopyVoxelsTo(int2 chunkId, VoxelData[] destination) {
             if (!IsAllocated(chunkId)) return;

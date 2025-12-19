@@ -41,7 +41,7 @@ namespace VektorVoxels.Jobs {
         private List<PendingMeshJob> _pendingJobs;
         private bool _initialized;
 
-        // Vertex buffer layout matching VisualMesher
+        // Vertex buffer layout: Position, Normal, UV, SunLight (Color32), BlockLight (Color32), TileRepeat
         private static readonly VertexAttributeDescriptor[] VertexBufferParams = {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
             new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
@@ -269,7 +269,7 @@ namespace VektorVoxels.Jobs {
 
         /// <summary>
         /// Syncs light data from managed chunk arrays to native arrays before meshing.
-        /// Call this after the legacy lighting system completes.
+        /// Call after lighting completes and before ExecuteMeshing.
         /// </summary>
         public void SyncLightFromChunk(Vector2Int chunkId) {
             var store = VoxelWorld.Instance?.ChunkDataStore;
