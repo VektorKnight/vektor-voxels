@@ -824,6 +824,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1141006912}
   - component: {fileID: 1141006911}
+  - component: {fileID: 1141006913}
   m_Layer: 0
   m_Name: '[WorldManager]'
   m_TagString: Untagged
@@ -843,7 +844,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f4b119522494d298acf1108a644482c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _maxChunks: {x: 64, y: 64}
+  _maxChunks: {x: 16, y: 16}
   _useSmoothLighting: 1
   _chunkPrefab: {fileID: 3355102642434385408, guid: b892d8b0ef44ad844afcb94d26bfc045, type: 3}
   _worldType: 1
@@ -851,6 +852,9 @@ MonoBehaviour:
   _viewDistance: 16
   _loadTransform: {fileID: 1494866693}
   _chunksPerTick: 8
+  _useUnityJobsTerrain: 1
+  _useUnityJobsLighting: 1
+  _useUnityJobsMeshing: 1
 --- !u!4 &1141006912
 Transform:
   m_ObjectHideFlags: 0
@@ -866,6 +870,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1141006913
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1141006910}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8e452ba2c65f8a48b83b4abe212495a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::VektorVoxels.UI.WorldUI
 --- !u!1 &1431724181
 GameObject:
   m_ObjectHideFlags: 0

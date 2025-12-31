@@ -8,6 +8,11 @@ namespace VektorVoxels.Meshing {
     /// LightNeighbors defines the 8 sampling positions for smooth lighting per face.
     /// </summary>
     public static class MeshTables {
+        // Texture atlas configuration: 256x256 total, 16x16 per tile = 16 tiles per row.
+        public const int ATLAS_SIZE = 256;
+        public const int TEXTURE_SIZE = 16;
+        public const float TEX_UV_WIDTH = 1f / (ATLAS_SIZE / TEXTURE_SIZE);
+
         // Face vertices (North is Z+).
         // Clockwise always starting from the bottom left.
         public static readonly Vector3[][] Vertices = {
@@ -161,50 +166,5 @@ namespace VektorVoxels.Meshing {
                 new Vector3Int(-1, 0, -1)     // NW
             },
         };
-        
-        /// <summary>
-        /// Returns a cube composed of the mesh data defined previously for testing purposes.
-        /// </summary>
-        /*public static Mesh GetTestCube() {
-            var mesh = new Mesh() {
-                indexFormat = IndexFormat.UInt32
-            };
-
-            var vertices = new Vector3[24];
-            var normals = new Vector3[24];
-            var uv = new Vector2[24];
-            var triangles = new int[36];
-
-            for (var i = 0; i < 6; i++) {
-                vertices[i * 4] = Vertices[i][0];
-                vertices[i * 4 + 1] = Vertices[i][1];
-                vertices[i * 4 + 2] = Vertices[i][2];
-                vertices[i * 4 + 3] = Vertices[i][3];
-                    
-                normals[i * 4]     = Normals[i];
-                normals[i * 4 + 1] = Normals[i];
-                normals[i * 4 + 2] = Normals[i];
-                normals[i * 4 + 3] = Normals[i];
-                
-                uv[i * 4]     = UVs[0];
-                uv[i * 4 + 1] = UVs[1];
-                uv[i * 4 + 2] = UVs[2];
-                uv[i * 4 + 3] = UVs[3];
-
-                triangles[i * 6] =     Triangles[0] + i * 4;
-                triangles[i * 6 + 1] = Triangles[1] + i * 4;
-                triangles[i * 6 + 2] = Triangles[2] + i * 4;
-                triangles[i * 6 + 3] = Triangles[3] + i * 4;
-                triangles[i * 6 + 4] = Triangles[4] + i * 4;
-                triangles[i * 6 + 5] = Triangles[5] + i * 4;
-                
-                mesh.SetVertices(vertices);
-                mesh.SetNormals(normals);
-                mesh.SetUVs(0, uv);
-                mesh.SetIndices(triangles, MeshTopology.Triangles, 0);
-            }
-            
-            return mesh;
-        }*/
     }
 }

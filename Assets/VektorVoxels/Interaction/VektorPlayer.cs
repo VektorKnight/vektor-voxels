@@ -1,7 +1,8 @@
 using System;
+using Input;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using VektorVoxels.Input;
+using VektorVoxels.UI;
 using VektorVoxels.VoxelPhysics;
 using VektorVoxels.Voxels;
 using VektorVoxels.World;
@@ -96,6 +97,9 @@ namespace VektorVoxels.Interaction {
             _crosshairTexture = new Texture2D(1, 1);
             _crosshairTexture.SetPixel(0, 0, Color.white);
             _crosshairTexture.Apply();
+
+            _wantsPlace = false;
+            _wantsBreak = false;
         }
 
         private void OnDestroy() {
@@ -149,6 +153,13 @@ namespace VektorVoxels.Interaction {
         }
 
         private void Update() {
+            // Skip input when UI is open
+            if (WorldUI.IsUIOpen) {
+                _moveInput = Vector3.zero;
+                _lookInput = Vector2.zero;
+                return;
+            }
+
             // Poll latest movement input.
             var moveInput = _playerControls.Gameplay.Move.ReadValue<Vector2>();
             _moveInput.x = moveInput.x;
@@ -246,7 +257,7 @@ namespace VektorVoxels.Interaction {
                 _lookingAtVoxel = voxelData.Id > 0 ? VoxelTable.GetVoxelDefinition(voxelData.Id) : null;
 
                 if (_wantsBreak) {
-                    VoxelWorld.Instance.TryQueueVoxelUpdate(result.World, VoxelData.Null());
+                    VoxelWorld.Instance.TryQueueVoxelUpdate(result.World, VoxelData.Empty());
                     _wantsBreak = false;
                 }
 
@@ -270,12 +281,16 @@ namespace VektorVoxels.Interaction {
         }
 
         public void SetHandVoxel(VoxelDefinition definition) {
-            throw new System.NotImplementedException();
+            _selectedVoxel = definition;
         }
 
         public void Teleport(Vector3 position) {
-            transform.position = position;
-            _voxelBody.Velocity = Vector3.zero;
+            _voxelBody.Teleport(position);
+        }
+
+        public void Teleport(Vector3 position, float yawDegrees) {
+            _voxelBody.Teleport(position);
+            _desiredLook.y = yawDegrees;
         }
     }
 }

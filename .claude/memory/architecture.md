@@ -1,7 +1,7 @@
 # Vektor Voxels - Architectural Knowledge
 
-<!-- Last Updated: 2025-11-21 -->
-<!-- Source: Code audit and documentation pass, threading improvements -->
+<!-- Last Updated: 2025-11-25 -->
+<!-- Source: Code audit, threading improvements, memory optimizations, pipeline audit -->
 
 Critical knowledge for understanding and modifying the codebase.
 
@@ -89,32 +89,72 @@ Uninitialized → TerrainGeneration → Lighting → WaitingForNeighbors → Mes
 ### Three-Pass Architecture
 
 1. **First pass**: Initialize sun/block light, propagate within chunk
-2. **Second pass**: Propagate light spilling from neighbors (N/E boundaries)
-3. **Third pass**: Propagate light spilling from neighbors (S/W boundaries)
+2. **Second pass**: Propagate light spilling from neighbors
+3. **Third pass**: Propagate light spilling from neighbors (redundant - see Known Issues)
+
+**Note:** Passes 2 and 3 are identical. This is likely unnecessary with proper propagation.
 
 ### Propagation Algorithm
 
 BFS flood-fill using stacks (`_sunNodes`, `_blockNodes`):
-- Decrement light by 17 per voxel (scaled for 8-bit, maintains ~15 voxel propagation distance)
-- Apply voxel attenuation from `ColorData` (scaled by 17)
-- Stop when all RGB channels ≤ 16
+- Multiplicative attenuation via LIGHT_MULTIPLIER (220/256 per step, ~15 block range)
+- Apply voxel tint from `ColorData` as pass-through multiplier (255 = full pass, 0 = block)
+- Stop when all RGB channels ≤ threshold (16)
 - Reject backwards propagation (node light < existing light)
+- **CRITICAL**: Must update lightmap immediately after improving a position to prevent exponential revisits
 
-**Light format:** `LightColor` with 8 bits per channel (0-255 intensity)
+**Light format:** `VoxelColor` with RGB565 (16-bit total: 5/6/5 bits per channel)
 
-**Source:** `Lighting/LightMapper.cs:157-227`
+**Source:** `Lighting/LightMapper.cs:183-295`
+
+### VoxelColor Struct [VERIFIED, HIGH]
+
+`VoxelColor` is the unified color type for lighting, emission, and tinting:
+
+**Storage:** RGB565 (16-bit packed)
+- R: 5 bits (32 levels)
+- G: 6 bits (64 levels)
+- B: 5 bits (32 levels)
+
+**API:** 0-255 range for compatibility, quantized on storage
+
+**Key methods:**
+- `Attenuate()` - Single-step attenuation via pre-computed LUT
+- `Tint(color)` - Apply color filter for translucent blocks
+- `AttenuateAndTint(color)` - Combined operation (efficient)
+- `IsBelowThreshold` - Check if all channels ≤ 16
+- `DominatesOrEquals(other)` - Check if this light dominates another
+
+**Constants:**
+- `ATTENUATION_MULTIPLIER = 220` (~0.859x per step)
+- `LIGHT_THRESHOLD = 16` (propagation cutoff)
+- `MAX_LIGHT = 255`
+
+**Attenuation math:** `255 * 0.859^15 ≈ 26`, giving ~15 propagation steps
+
+**Source:** `Lighting/VoxelColor.cs`
 
 ### Sun vs Block Light
 
 - **Sunlight**: Full intensity (255, 255, 255) above heightmap, propagates downward into caverns
-- **Block light**: Point sources from voxels with `LightSource` flag, emits from `ColorData` (upscaled from 4-bit)
+- **Block light**: Point sources from voxels with `LightSource` flag, emits from `ColorData`
+
+### Translucent Tinting [VERIFIED, HIGH]
+
+Colored glass uses `ColorData` as direct pass-through multiplier:
+- `(255, 255, 255)` = full pass (clear glass)
+- `(255, 64, 64)` = pass red, block most green/blue (red glass)
+- Air voxels use `VoxelColor.White()` for full pass-through
+
+No attenuation inversion; values are intuitive (higher = more light passes).
 
 ### Data Structures
 
-- `LightColor` - 32-bit packed struct (8 bits per RGBA channel)
-- `LightNode` - Position + LightColor for propagation queue
-- `LightData` - Combined sun + block light at a voxel
-- `Color16` - Still used for voxel ColorData/attenuation (4-bit per channel)
+- `VoxelColor` - 16-bit RGB565 packed struct (5/6/5 bits per channel, ~32-64 levels)
+- `LightNode` - Position + VoxelColor for propagation queue
+- `LightData` - Combined sun + block light at a voxel (4 bytes total)
+- `VoxelData.ColorData` - Uses VoxelColor for light emission and tinting
+- `Color16` - Deprecated, use VoxelColor instead
 
 ---
 
@@ -194,12 +234,26 @@ Set true when job is dispatched, false on completion. Prevents overlapping jobs 
 
 ## Known Critical Issues [VERIFIED, HIGH]
 
-### Fixed Issues (2025-11-21)
+### Fixed Issues (2025-11-25)
 
 1. ~~**LightMapper neighbor locks** - Blocking acquisition without timeout~~ → Now uses `TryEnterReadLock()` with timeout
 2. ~~**MeshJob exception path** - Lock not released~~ → Already had proper try-finally
 3. ~~**Boolean flags without volatile**~~ → State flags now marked `volatile`
 4. ~~**Frame-by-frame neighbor polling**~~ → Now event-driven with fallback polling
+5. ~~**Light propagation exponential work** - Lightmap not updated during propagation~~ → Fixed: lightmap now written immediately when node improves it
+6. ~~**VoxelColor.Compare bug** - Compared R channel twice instead of B~~ → Fixed: renamed to `AnyChannelGreater` with correct logic
+
+### Pipeline Architecture Issues [VERIFIED, HIGH]
+
+Issues identified during 2025-11-25 audit (see `docs/chunk_pipeline_refactor.md`):
+
+1. **Three lighting passes unnecessary** - Passes 2 and 3 are identical; likely only 2 needed
+2. **Mixed push/pull synchronization** - Events + polling fallback creates race conditions
+3. **Volatile flags non-atomic** - Multiple volatiles read in combination without proper sync
+4. **Lock timeout = app exit** - Should retry instead of crashing
+5. **Event subscription overhead** - N² event connections between chunks
+6. **Aborted jobs don't retry** - Chunk stuck in invalid state on failure
+7. **Job counter timing** - Should re-check after acquiring lock
 
 ### Remaining Deadlock Risks
 
@@ -221,7 +275,7 @@ Set true when job is dispatched, false on completion. Prevents overlapping jobs 
 3. Cache-unfriendly loop order in meshing
 4. **Improved:** Neighbor polling reduced from every-frame to every 10 frames (events handle most cases)
 
-**Source:** `docs/initial_report.md` for full details
+**Source:** `docs/initial_report.md` for full details, `docs/chunk_pipeline_refactor.md` for refactoring plan
 
 ---
 
@@ -237,3 +291,31 @@ Digital Differential Analyzer for voxel raycasting. More efficient than PhysX fo
 5. Check voxel at new position
 
 **Source:** `VoxelPhysics/VoxelTrace.cs:20-115`
+
+---
+
+## Memory Layout [VERIFIED, HIGH]
+
+### Per-Chunk Memory (16×256×16 = 65,536 voxels)
+
+| Data | Size/Voxel | Per Chunk |
+|------|------------|-----------|
+| VoxelData (ID + Flags + Orientation + ColorData) | 6 bytes | 384 KB |
+| LightData (Sun + Block VoxelColor) | 4 bytes | 256 KB |
+| HeightData | - | ~1 KB |
+| **Total** | **10 bytes** | **~640 KB** |
+
+### Memory Optimizations (2025-11-22)
+
+1. **VoxelColor RGB565** - Reduced from 32-bit to 16-bit per color
+   - Lighting memory halved: 512 KB → 256 KB per chunk
+   - Quality: 32/64/32 levels per channel (sufficient, minimal banding)
+
+2. **Color16 Deprecated** - Consolidated to single color type
+   - Better precision than old 4-bit Color16 (16 levels)
+   - Same memory footprint (16-bit)
+
+3. **Future optimizations** (not yet implemented):
+   - Palette compression for VoxelData (~12x reduction possible)
+   - Y-section chunking (60-80% reduction for typical terrain)
+   - Morton coding for cache locality (modest gains)

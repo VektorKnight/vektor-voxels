@@ -4,7 +4,6 @@ using AudioTerrain;
 using UnityEngine;
 using UnityEngine.UI;
 using VektorVoxels.Debugging;
-using VektorVoxels.Threading;
 using VektorVoxels.World;
 using Debug = UnityEngine.Debug;
 
@@ -26,7 +25,6 @@ namespace VektorVoxels.UI {
             _canvas = GetComponent<Canvas>();
 
             _upperRight.text = $"{SystemInfo.processorType.Trim()}\n" +
-                               //$"{SystemInfo.graphicsDeviceName} | {SystemInfo.graphicsDeviceType}\n" +
                                $"{SystemInfo.operatingSystem}\n" +
                                $"Unity {Application.unityVersion}";
 
@@ -37,10 +35,6 @@ namespace VektorVoxels.UI {
         }
 
         private void Update() {
-            //if (Input.GetKeyDown(KeyCode.F3)) {
-                //_canvas.enabled = !_canvas.enabled;
-            //}
-            
             _profiler.PushFrameTime(Time.deltaTime);
 
             if (!_canvas.enabled) {
@@ -50,10 +44,15 @@ namespace VektorVoxels.UI {
             var position = _player.position;
             var chunk = VoxelWorld.Instance.WorldToChunkPos(position);
             
+            var lightingMode = VoxelWorld.Instance.LightingScheduler?.UseTwoPassLighting ?? false
+                ? "2-pass (F3)"
+                : "3-pass (F3)";
+
             _upperLeft.text = $"{Application.productName} | {Application.version}\n" +
                               $"FPS: {1f / Time.deltaTime:n0}\n" +
                               $"Chunks/Tick: {VoxelWorld.Instance.ChunksPerTick}\n" +
                               $"View: {VoxelWorld.Instance.ViewDistance}\n" +
+                              $"Lighting: {lightingMode}\n" +
                               $"World: {_player.transform.position}\n" +
                               $"Chunk: {chunk}";
         }

@@ -2,9 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Collaboration Style
+
+This is a research project where we work as peers. When collaborating:
+
+- **Be direct and honest** - Don't suppress thoughts or avoid disagreement to be agreeable. Push back when you see issues, offer alternatives, voice concerns.
+- **No artificial constraints** - You're not here to validate ideas; you're here to help solve interesting problems. If an approach seems wrong, say so.
+- **Think out loud** - Share your reasoning, trade-offs you're weighing, and uncertainties. This is a sandbox for exploring complex systems together.
+- **Challenge assumptions** - The user may be wrong. Prior decisions may have been suboptimal. Question things.
+
+We get better results with an equal relationship when tackling complex problems.
+
 ## Project Overview
 
-Vektor Voxels is a custom voxel engine built in Unity 6000.2.2f1+ (compatible with Unity 2021+). It implements concurrent job-based threading for terrain generation, lighting, and meshing operations. The project is no longer actively maintained but serves as a reference for cubic voxel meshing with per-side textures.
+Vektor Voxels is a custom voxel engine built in Unity 6000.2.2f1+ (compatible with Unity 2021+). It uses Unity's Job System with Burst compilation for terrain generation, lighting, and meshing operations.
+
+**Project nature:** This is an ongoing research sandbox - not a complete game, but a space to explore voxel engine problems (lighting, meshing, threading, persistence) in a playable environment. It evolves over time as interesting problems are investigated.
+
+**Current focus:** Stabilizing the chunk pipeline and fixing boundary propagation edge cases in the lighting system.
 
 ## Build Commands
 
@@ -34,23 +49,27 @@ Each chunk is 16x256x16 voxels. The world supports up to 64x64 chunks with all c
 
 4. **Terrain Generation** (`Generation/`) - Implements `ITerrainGenerator` interface. Uses `PerlinGenerator` by default with layered voxels (bedrock/stone/dirt/grass)
 
-5. **Lighting** (`Lighting/LightMapper.cs`) - Dual lighting: Sunlight (propagates down) + Block light (6-direction flood-fill). Uses 4-bit per RGB channel. Smooth lighting with AO samples 8 corners per face
+5. **Lighting** (`Jobs/LightingJobs.cs`, `Jobs/LightingJobScheduler.cs`) - Dual lighting: Sunlight (propagates down) + Block light (6-direction flood-fill). Uses RGB565 (16-bit) per light type. Coordinated multi-pass system ensures correct cross-chunk propagation. Smooth lighting with AO samples corners per face.
 
-6. **Meshing** (`Meshing/`) - `VisualMesher` generates display mesh, `CollisionMesher` generates physics mesh. Custom vertex layout: Position, Normal, UV, SunLight (TexCoord1), BlockLight (TexCoord2)
+6. **Meshing** (`Jobs/MeshingJobs.cs`, `Meshing/VisualMesher.cs`) - Burst-compiled mesh generation. Custom vertex layout: Position, Normal, UV, SunLight (TexCoord1), BlockLight (TexCoord2). `CollisionMesher` generates physics mesh.
 
-7. **Threading** (`Threading/GlobalThreadPool.cs`) - Custom thread pool using 3/4 CPU cores (min 2). `VektorJob<T>` provides async/await pattern with callback dispatching to main thread
+7. **Job System** (`Jobs/`, `Data/ChunkDataStore.cs`) - Uses Unity Job System with Burst compilation. `ChunkDataStore` manages NativeArray storage. Coordinated scheduling via `TerrainJobScheduler`, `LightingJobScheduler`, `MeshingJobScheduler`.
 
-8. **Player Interaction** (`Interaction/VektorPlayer.cs`) - Uses New Input System. Voxel raycasting via DDA algorithm (`VoxelPhysics/VoxelTrace.cs`) for place/break operations
+8. **Persistence** (`Persistence/WorldPersistence.cs`) - RLE-compressed chunk serialization. Async save with throttled queue to prevent GC spikes. Player position saved/restored.
+
+9. **Player Interaction** (`Interaction/VektorPlayer.cs`) - Uses New Input System. Voxel raycasting via DDA algorithm (`VoxelPhysics/VoxelTrace.cs`) for place/break operations
 
 ### Namespace Structure
 
 ```
 VektorVoxels
-├── Chunks          // Chunk lifecycle and data
+├── Chunks          // Chunk lifecycle and state machine
+├── Data            // NativeArray storage (ChunkDataStore)
 ├── Generation      // Terrain generators
-├── Lighting        // Light propagation
+├── Jobs            // Unity Jobs (terrain, lighting, meshing schedulers)
+├── Lighting        // Light data structures and legacy mapper
 ├── Meshing         // Mesh generation
-├── Threading/Jobs  // Job system and thread pool
+├── Persistence     // World save/load
 ├── Voxels          // Voxel data structures
 ├── VoxelPhysics    // DDA raycasting
 ├── Interaction     // Player controller
@@ -74,14 +93,22 @@ VektorVoxels
 
 ## Known Issues
 
-- No chunk persistence/serialization
-- Some lighting edge cases with neighbor propagation
-- PhysX collider generation can cause stuttering
+### Debug Keybinds
+
+- **F3** - Toggle two-pass lighting mode (experimental, ~33% faster)
+- **F5** - Force refresh all chunks (Minecraft-style lighting fix)
+
+### Minor Issues
+
+- PhysX collider generation can cause stuttering on dense chunks
+- Partial chunk loading at view boundaries may show incorrect edge lighting until neighbors load
+- Two-pass lighting (F6) may have subtle artifacts when multiple light sources converge through intermediate chunks
 
 ## Additional Documentation
 
+- **`docs/chunk_pipeline_audit.md`** - Technical deep-dive on chunk pipeline and boundary propagation issues
 - **`docs/initial_report.md`** - Comprehensive code audit with issues categorized by severity
-- **`.claude/memory/architecture.md`** - Deep architectural knowledge (threading, state machines, algorithms)
+- **`.claude/memory/architecture.md`** - Deep architectural knowledge (state machines, algorithms, data structures)
 - **`.claude/memory/sessions.md`** - Active work tracking for session continuity
 
 The memory file contains critical non-obvious knowledge with confidence tags. Consult it before making significant changes to threading, lighting, or chunk systems.

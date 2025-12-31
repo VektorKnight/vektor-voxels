@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
 
-namespace VektorVoxels.Input
+namespace Input
 {
     public class @PlayerControls : IInputActionCollection, IDisposable
     {

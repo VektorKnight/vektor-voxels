@@ -9,10 +9,10 @@ namespace VektorVoxels.Voxels {
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public readonly struct VoxelData : IEquatable<VoxelData> {
-        public readonly ushort Id;          
+        public readonly ushort Id;
         public readonly VoxelFlags Flags;
         public readonly FacingDirection Orientation;
-        public readonly Color16 ColorData;
+        public readonly VoxelColor ColorData;
         
         /// <summary>
         /// Whether or not the voxel is null or air.
@@ -23,10 +23,10 @@ namespace VektorVoxels.Voxels {
         /// A null voxel or "air" in some games.
         /// Not considered for meshing, collision, or anything else really.
         /// </summary>
-        private static readonly VoxelData NULL_VOXEL = new VoxelData(0, VoxelFlags.NoCollision, 0, Color16.Clear());
-        public static VoxelData Null() => NULL_VOXEL;
+        private static readonly VoxelData NULL_VOXEL = new VoxelData(0, VoxelFlags.NoCollision, 0, VoxelColor.White());
+        public static VoxelData Empty() => NULL_VOXEL;
 
-        public VoxelData(ushort id, VoxelFlags flags, FacingDirection orientation, Color16 colorData) {
+        public VoxelData(ushort id, VoxelFlags flags, FacingDirection orientation, VoxelColor colorData) {
             Id = id;
             Flags = flags;
             Orientation = orientation;
@@ -49,6 +49,21 @@ namespace VektorVoxels.Voxels {
         [Pure]
         public override bool Equals(object obj) {
             return obj is VoxelData other && Equals(other);
+        }
+
+        [Pure]
+        public bool IsEmpty() {
+            return Id == 0;
+        }
+
+        [Pure]
+        public bool IsOpaque() {
+            return !IsEmpty() && (Flags & VoxelFlags.AlphaRender) == 0;
+        }
+        
+        [Pure]
+        public bool IsLightSource() {
+            return !IsEmpty() && (Flags.HasFlag(VoxelFlags.LightSource));
         }
         
         [Pure]

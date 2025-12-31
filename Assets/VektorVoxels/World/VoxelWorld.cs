@@ -2,14 +2,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 using VektorVoxels.Chunks;
-using VektorVoxels.Generation;
-using VektorVoxels.Lighting;
-using VektorVoxels.Meshing;
-using VektorVoxels.Threading;
-using VektorVoxels.Threading.Jobs;
 using VektorVoxels.Voxels;
 using VektorVoxels.VoxelPhysics;
-using Random = UnityEngine.Random;
+using VektorVoxels.Persistence;
+using VektorVoxels.Data;
+using VektorVoxels.Jobs;
+using Unity.Mathematics;
+using VektorVoxels.Generation;
 
 namespace VektorVoxels.World {
     /// <summary>
@@ -45,15 +44,58 @@ namespace VektorVoxels.World {
         [Header("Performance")] 
         [SerializeField] private int _chunksPerTick = 4;
 
-        private ITerrainGenerator _generator;
         private Chunk[,] _chunks;
         private LoadRect _loadRect;
-        // NOTE: Chunk ID = array index (0 to MaxChunks). Chunk Pos = world-centered (-MaxChunks/2 to +MaxChunks/2).
+        // Chunk ID = array index (0 to MaxChunks-1). Chunk Pos = world-centered (-MaxChunks/2 to +MaxChunks/2-1).
         private List<Chunk> _loadedChunks;
         private List<Chunk> _chunksToLoad;
         private Queue<Chunk> _loadQueue;
         private HashSet<Chunk> _loadQueueSet;
         private bool _needsSort;
+
+        // Persistence.
+        private WorldPersistence _persistence;
+        private float _autoSaveTimer;
+        private float _autoSaveInterval = 30f;
+
+        // Throttled save queue - prevents GC spikes from mass chunk saves.
+        private Queue<Chunk> _saveQueue;
+        private HashSet<Chunk> _saveQueueSet;
+
+        // Coordinated lighting queue - chunks needing lighting are batched together.
+        private HashSet<Chunk> _lightingQueue;
+        private List<int2> _lightingBatch; // Reusable list for ExecuteFullLighting
+
+        // Unity Jobs systems.
+        private ChunkDataStore _chunkDataStore;
+        private TerrainJobScheduler _terrainScheduler;
+        private LightingJobScheduler _lightingScheduler;
+        private MeshingJobScheduler _meshingScheduler;
+
+
+        public WorldPersistence Persistence => _persistence;
+        public bool IsWorldLoaded => _persistence?.IsWorldLoaded ?? false;
+
+        /// <summary>
+        /// Native container storage for Unity Jobs system.
+        /// </summary>
+        public ChunkDataStore ChunkDataStore => _chunkDataStore;
+
+        /// <summary>
+        /// Burst-compiled terrain generator scheduler.
+        /// </summary>
+        public TerrainJobScheduler TerrainScheduler => _terrainScheduler;
+
+        /// <summary>
+        /// Burst-compiled lighting scheduler.
+        /// </summary>
+        public LightingJobScheduler LightingScheduler => _lightingScheduler;
+
+
+        /// <summary>
+        /// Burst-compiled meshing scheduler.
+        /// </summary>
+        public MeshingJobScheduler MeshingScheduler => _meshingScheduler;
 
         // Events.
         public delegate void WorldEventHandler(WorldEvent e);
@@ -65,7 +107,6 @@ namespace VektorVoxels.World {
         public int SeaLevel => _seaLevel;
         public int ViewDistance => _viewDistance;
 
-        public ITerrainGenerator Generator => _generator;
         public Chunk[,] Chunks => _chunks;
         public LoadRect LoadRect => _loadRect;
 
@@ -221,22 +262,289 @@ namespace VektorVoxels.World {
             }
 
             Instance = this;
-            
+
             // Limit max framerate to 360 cause coil whine is annoying.
             Application.targetFrameRate = 360;
 
-            _generator = PerlinGenerator.Default();
             _chunks = new Chunk[_maxChunks.x, _maxChunks.y];
             _loadRect = new LoadRect(Vector2Int.zero, _viewDistance);
             _loadedChunks = new List<Chunk>();
             _chunksToLoad = new List<Chunk>();
             _loadQueue = new Queue<Chunk>();
             _loadQueueSet = new HashSet<Chunk>();
+            _persistence = new WorldPersistence();
+            _saveQueue = new Queue<Chunk>();
+            _saveQueueSet = new HashSet<Chunk>();
+            _lightingQueue = new HashSet<Chunk>();
+            _lightingBatch = new List<int2>();
 
-            // Configure thread pool throttled queue.
-            GlobalThreadPool.ThrottledUpdatesPerTick = _chunksPerTick;
+            // Initialize Unity Jobs data store.
+            _chunkDataStore = new ChunkDataStore(new int2(_maxChunks.x, _maxChunks.y));
+
+            // Initialize Unity Jobs schedulers.
+            _terrainScheduler = new TerrainJobScheduler();
+            var layers = GetDefaultTerrainLayers();
+            _terrainScheduler.Initialize(layers, 0.02f);
+
+            _lightingScheduler = new LightingJobScheduler();
+            _lightingScheduler.Initialize();
+
+            _meshingScheduler = new MeshingJobScheduler();
+            _meshingScheduler.Initialize();
         }
-        
+
+        /// <summary>
+        /// Creates the default terrain layer configuration.
+        /// Layers are applied bottom-to-top during terrain generation.
+        /// </summary>
+        private VoxelLayer[] GetDefaultTerrainLayers() {
+            var bedrock = VoxelTable.GetVoxelDefinition("bedrock");
+            var stone = VoxelTable.GetVoxelDefinition("stone");
+            var dirt = VoxelTable.GetVoxelDefinition("dirt");
+            var grass = VoxelTable.GetVoxelDefinition("grass");
+
+            return new[] {
+                new VoxelLayer(grass.Id, 1),
+                new VoxelLayer(dirt.Id, 3),
+                new VoxelLayer(stone.Id, 27),
+                new VoxelLayer(bedrock.Id, 1)
+            };
+        }
+
+        /// <summary>
+        /// Creates a new world with the given name and seed.
+        /// </summary>
+        public bool CreateWorld(string name, int seed) {
+            if (!_persistence.CreateWorld(name, seed)) {
+                return false;
+            }
+
+            // Mark all existing chunks as dirty so they get saved
+            foreach (var chunk in _loadedChunks) {
+                chunk.MarkPersistenceDirty();
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Loads an existing world by name.
+        /// </summary>
+        public bool LoadWorld(string name, out List<string> missingVoxels) {
+            if (!_persistence.LoadWorld(name, out missingVoxels)) {
+                return false;
+            }
+
+            // Restore player position
+            if (_loadTransform != null && _persistence.WorldData != null) {
+                var data = _persistence.WorldData;
+                // Only restore if position was saved (non-zero check)
+                if (data.PlayerX != 0 || data.PlayerY != 0 || data.PlayerZ != 0) {
+                    // Use IPlayer.Teleport if available (handles VoxelBody properly)
+                    var player = _loadTransform.GetComponent<Interaction.IPlayer>();
+                    if (player != null) {
+                        player.Teleport(new Vector3(data.PlayerX, data.PlayerY, data.PlayerZ), data.PlayerRotationY);
+                    }
+                    else {
+                        _loadTransform.position = new Vector3(data.PlayerX, data.PlayerY, data.PlayerZ);
+                        _loadTransform.eulerAngles = new Vector3(0, data.PlayerRotationY, 0);
+                    }
+                }
+            }
+
+            // Clear all existing chunks so they reload from disk
+            ClearAllChunks();
+            return true;
+        }
+
+        /// <summary>
+        /// Clears all loaded chunks, forcing them to reload.
+        /// </summary>
+        private void ClearAllChunks() {
+            // Complete any pending terrain generation jobs first.
+            // This ensures callbacks fire before chunks are destroyed.
+            _terrainScheduler?.CompleteAll();
+
+            // Clear tracking collections (prevents callbacks from re-queuing)
+            _loadQueue.Clear();
+            _loadQueueSet.Clear();
+            _saveQueue.Clear();
+            _saveQueueSet.Clear();
+            _lightingQueue.Clear();
+
+            // Clear the chunk array BEFORE destroying GameObjects.
+            // This ensures any deferred callbacks find null and exit early.
+            for (var x = 0; x < _maxChunks.x; x++) {
+                for (var z = 0; z < _maxChunks.y; z++) {
+                    _chunks[x, z] = null;
+                }
+            }
+
+            // Now destroy all chunk GameObjects
+            foreach (var chunk in _loadedChunks) {
+                if (chunk != null) {
+                    Destroy(chunk.gameObject);
+                }
+            }
+
+            _loadedChunks.Clear();
+        }
+
+        /// <summary>
+        /// Gets all available world names.
+        /// </summary>
+        public string[] GetAvailableWorlds() {
+            return _persistence.GetAvailableWorlds();
+        }
+
+        /// <summary>
+        /// Queues all dirty chunks for saving. Chunks are saved one at a time
+        /// to prevent GC spikes from mass allocations.
+        /// </summary>
+        public void SaveWorld() {
+            if (!IsWorldLoaded) return;
+
+            var queuedCount = 0;
+            foreach (var chunk in _loadedChunks) {
+                if (chunk.PersistenceDirty && !_saveQueueSet.Contains(chunk)) {
+                    _saveQueue.Enqueue(chunk);
+                    _saveQueueSet.Add(chunk);
+                    queuedCount++;
+                }
+            }
+
+            // Save player position
+            if (_loadTransform != null) {
+                var pos = _loadTransform.position;
+                var rot = _loadTransform.eulerAngles;
+                _persistence.WorldData.PlayerX = pos.x;
+                _persistence.WorldData.PlayerY = pos.y;
+                _persistence.WorldData.PlayerZ = pos.z;
+                _persistence.WorldData.PlayerRotationY = rot.y;
+            }
+
+            if (queuedCount > 0 || _loadTransform != null) {
+                _persistence.SaveWorldMetadata();
+                Debug.Log($"[VoxelWorld] Queued {queuedCount} chunks for save ({_saveQueue.Count} total in queue).");
+            }
+        }
+
+        /// <summary>
+        /// Processes the save queue, saving one chunk per call if the persistence layer is ready.
+        /// Uses ChunkDataStore NativeArrays as source and pooled buffer to avoid GC allocations.
+        /// </summary>
+        private void ProcessSaveQueue() {
+            if (_saveQueue.Count == 0) return;
+            if (_persistence.SaveInProgress) return;
+
+            var chunk = _saveQueue.Peek();
+
+            // Get the pooled buffer.
+            var chunkSize = CHUNK_SIZE;
+            var bufferSize = chunkSize.x * chunkSize.y * chunkSize.x;
+            var buffer = _persistence.GetSaveBuffer(bufferSize);
+            if (buffer == null) return; // Buffer busy.
+
+            // Copy voxel data from ChunkDataStore (NativeArray) to managed buffer.
+            var chunkId = new int2(chunk.ChunkId.x, chunk.ChunkId.y);
+            if (_chunkDataStore.IsAllocated(chunkId)) {
+                _chunkDataStore.CopyVoxelsTo(chunkId, buffer);
+            }
+            else {
+                // Fallback to managed array if chunk not in ChunkDataStore.
+                Array.Copy(chunk.VoxelData, buffer, buffer.Length);
+            }
+
+            // Data captured, safe to dequeue.
+            _saveQueue.Dequeue();
+            _saveQueueSet.Remove(chunk);
+
+            // Start async save.
+            _persistence.SaveChunkAsyncFromBuffer(chunk.ChunkPos, () => {
+                chunk.ClearPersistenceDirty();
+            });
+        }
+
+        /// <summary>
+        /// Gets the number of chunks that need saving (dirty + queued).
+        /// </summary>
+        public int GetDirtyChunkCount() {
+            var count = _saveQueue.Count;
+            foreach (var chunk in _loadedChunks) {
+                if (chunk.PersistenceDirty && !_saveQueueSet.Contains(chunk)) count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Gets the number of chunks currently in the save queue.
+        /// </summary>
+        public int GetSaveQueueCount() {
+            return _saveQueue.Count;
+        }
+
+        /// <summary>
+        /// Queues a chunk for coordinated lighting.
+        /// All queued chunks will be processed together to ensure correct cross-chunk propagation.
+        /// </summary>
+        public void QueueChunkForLighting(Chunk chunk) {
+            if (chunk == null) return;
+            _lightingQueue.Add(chunk);
+        }
+
+        /// <summary>
+        /// Forces a complete refresh of all loaded chunks (re-light and re-mesh).
+        /// Minecraft-style fix for lighting bugs - press F5 to refresh.
+        /// </summary>
+        public void ForceRefreshAllChunks() {
+            var count = 0;
+            foreach (var chunk in _loadedChunks) {
+                if (chunk == null || chunk.State < ChunkState.Ready) continue;
+
+                // Clear existing light data and queue for full re-light
+                System.Array.Clear(chunk.SunLight, 0, chunk.SunLight.Length);
+                System.Array.Clear(chunk.BlockLight, 0, chunk.BlockLight.Length);
+                chunk.SyncLightToNativeData();
+
+                QueueChunkForLighting(chunk);
+                count++;
+            }
+            Debug.Log($"[VoxelWorld] Force refresh: queued {count} chunks for re-lighting (F5)");
+        }
+
+        /// <summary>
+        /// Gets the number of chunks waiting for lighting.
+        /// </summary>
+        public int GetLightingQueueCount() {
+            return _lightingQueue.Count;
+        }
+
+        /// <summary>
+        /// Processes all chunks in the lighting queue using coordinated multi-pass lighting.
+        /// This ensures all chunks complete each pass before any starts the next,
+        /// eliminating race conditions in cross-chunk light propagation.
+        /// </summary>
+        private void ProcessLightingQueue() {
+            if (_lightingQueue.Count == 0) return;
+            if (_lightingScheduler == null || !_lightingScheduler.IsInitialized) return;
+
+            // Build batch list of chunk IDs
+            _lightingBatch.Clear();
+            foreach (var chunk in _lightingQueue) {
+                _lightingBatch.Add(new int2(chunk.ChunkId.x, chunk.ChunkId.y));
+            }
+
+            // Execute coordinated lighting for all chunks
+            _lightingScheduler.ExecuteFullLighting(_lightingBatch);
+
+            // Trigger meshing for all lit chunks
+            foreach (var chunk in _lightingQueue) {
+                chunk.QueueMeshPassFromWorld();
+            }
+
+            _lightingQueue.Clear();
+        }
+
         /// <summary>
         /// Used for sorting chunks.
         /// Might be called extremely often so component-wise math was used.
@@ -270,6 +578,11 @@ namespace VektorVoxels.World {
 
         private void FixedUpdate() {
             if (_loadTransform == null) {
+                return;
+            }
+
+            // Wait until a world is loaded before generating chunks
+            if (!IsWorldLoaded) {
                 return;
             }
             
@@ -325,16 +638,52 @@ namespace VektorVoxels.World {
                 if (count <= 0) {
                     break;
                 }
-                
+
                 var chunk = _loadQueue.Dequeue();
                 _loadQueueSet.Remove(chunk);
-                chunk.Initialize();
+
+                // Try to load from persistence if world is loaded
+                if (IsWorldLoaded && _persistence.ChunkExists(chunk.ChunkPos)) {
+                    var dimensions = CHUNK_SIZE;
+                    var dataSize = dimensions.x * dimensions.y * dimensions.x;
+                    var voxelData = new VoxelData[dataSize];
+
+                    if (_persistence.LoadChunk(chunk.ChunkPos, voxelData)) {
+                        chunk.InitializeWithData(voxelData);
+                    }
+                    else {
+                        chunk.Initialize();
+                    }
+                }
+                else {
+                    chunk.Initialize();
+                    // Mark newly generated chunks as dirty for persistence
+                    if (IsWorldLoaded) {
+                        chunk.MarkPersistenceDirty();
+                    }
+                }
+
                 _loadedChunks.Add(chunk);
                 count--;
             }
         }
 
         private void Update() {
+            // F5: Force refresh all chunks (Minecraft-style lighting fix)
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F5)) {
+                ForceRefreshAllChunks();
+            }
+            
+
+            // F3: Toggle two-pass lighting (experimental ~33% faster)
+            if (UnityEngine.Input.GetKeyDown(KeyCode.F3)) {
+                if (_lightingScheduler != null) {
+                    _lightingScheduler.UseTwoPassLighting = !_lightingScheduler.UseTwoPassLighting;
+                    Debug.Log($"[VoxelWorld] Two-pass lighting: {_lightingScheduler.UseTwoPassLighting}");
+                    ForceRefreshAllChunks(); // Re-light to see the difference
+                }
+            }
+
             // Sort the loaded chunks only when load region changes.
             if (_needsSort) {
                 _loadedChunks.Sort(CompareChunks);
@@ -344,6 +693,27 @@ namespace VektorVoxels.World {
             foreach (var chunk in _loadedChunks) {
                 chunk.OnTick();
             }
+
+            // Update terrain job scheduler (processes completed jobs).
+            _terrainScheduler?.Update();
+
+            // Process coordinated lighting queue.
+            ProcessLightingQueue();
+
+            // Process save queue (one chunk per frame when ready).
+            ProcessSaveQueue();
+
+            // Process persistence callbacks (async save completions).
+            _persistence.ProcessCallbacks();
+
+            // Auto-save dirty chunks on interval
+            if (IsWorldLoaded) {
+                _autoSaveTimer += Time.deltaTime;
+                if (_autoSaveTimer >= _autoSaveInterval) {
+                    _autoSaveTimer = 0f;
+                    SaveWorld();
+                }
+            }
         }
 
         private void LateUpdate() {
@@ -352,10 +722,55 @@ namespace VektorVoxels.World {
             }
         }
 
+        private void OnApplicationQuit() {
+            // Save all dirty chunks on quit (synchronously - can't rely on async on exit).
+            if (IsWorldLoaded) {
+                // Save player position
+                if (_loadTransform != null) {
+                    var pos = _loadTransform.position;
+                    var rot = _loadTransform.eulerAngles;
+                    _persistence.WorldData.PlayerX = pos.x;
+                    _persistence.WorldData.PlayerY = pos.y;
+                    _persistence.WorldData.PlayerZ = pos.z;
+                    _persistence.WorldData.PlayerRotationY = rot.y;
+                }
+
+                // First, flush any queued chunks.
+                var queuedCount = _saveQueue.Count;
+                while (_saveQueue.Count > 0) {
+                    var chunk = _saveQueue.Dequeue();
+                    _saveQueueSet.Remove(chunk);
+                    _persistence.SaveChunk(chunk.ChunkPos, chunk.VoxelData);
+                    chunk.ClearPersistenceDirty();
+                }
+
+                // Then save any remaining dirty chunks not in queue.
+                var dirtyCount = 0;
+                foreach (var chunk in _loadedChunks) {
+                    if (chunk.PersistenceDirty) {
+                        _persistence.SaveChunk(chunk.ChunkPos, chunk.VoxelData);
+                        chunk.ClearPersistenceDirty();
+                        dirtyCount++;
+                    }
+                }
+
+                _persistence.SaveWorldMetadata();
+                Debug.Log($"[VoxelWorld] Saved world on exit ({queuedCount} queued + {dirtyCount} dirty chunks).");
+            }
+        }
+
+        private void OnDestroy() {
+            // Dispose Unity Jobs systems to prevent memory leaks.
+            _meshingScheduler?.Dispose();
+            _lightingScheduler?.Dispose();
+            _terrainScheduler?.Dispose();
+            _chunkDataStore?.Dispose();
+        }
+
         private void OnDrawGizmos() {
             Gizmos.color = Color.green;
             Gizmos.DrawWireCube(new Vector3(_loadRect.Position.x, 0, _loadRect.Position.y) * CHUNK_SIZE.x, new Vector3(_viewDistance * 2, 1, _viewDistance * 2) * CHUNK_SIZE.x);
-            
+
             Gizmos.color = Color.red;
             Gizmos.DrawWireCube(Vector3.zero, new Vector3(_maxChunks.x, 16, _maxChunks.y) * CHUNK_SIZE.x);
         }

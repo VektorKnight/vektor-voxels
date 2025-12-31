@@ -278,7 +278,7 @@ MonoBehaviour:
   - InternalName: glass
     Flags: 1
     Orientation: 0
-    LightColor: {r: 0.63, g: 0.63, b: 0.63, a: 0}
+    LightColor: {r: 1, g: 1, b: 1, a: 0}
     UseSingleTexture: 1
     SingleTexture: {x: 0, y: 6}
     FaceTextures:

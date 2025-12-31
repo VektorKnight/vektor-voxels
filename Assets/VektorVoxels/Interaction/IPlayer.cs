@@ -37,5 +37,10 @@ namespace VektorVoxels.Interaction {
         /// Teleport the player to a specified world-space position.
         /// </summary>
         void Teleport(Vector3 position);
+
+        /// <summary>
+        /// Teleport the player to a specified position and rotation.
+        /// </summary>
+        void Teleport(Vector3 position, float yawDegrees);
     }
 }
