@@ -49,7 +49,7 @@ Each chunk is 16x256x16 voxels. The world supports up to 64x64 chunks with all c
 
 4. **Terrain Generation** (`Generation/`) - Implements `ITerrainGenerator` interface. Uses `PerlinGenerator` by default with layered voxels (bedrock/stone/dirt/grass)
 
-5. **Lighting** (`Jobs/LightingJobs.cs`, `Jobs/LightingJobScheduler.cs`) - Dual lighting: Sunlight (propagates down) + Block light (6-direction flood-fill). Uses RGB565 (16-bit) per light type. Coordinated multi-pass system ensures correct cross-chunk propagation. Smooth lighting with AO samples corners per face.
+5. **Lighting** (`Jobs/LightingJobs.cs`, `Jobs/LightingJobScheduler.cs`) - Dual lighting: Sunlight (propagates down) + Block light (6-direction flood-fill). Uses RGB565 (16-bit) per light type. Multi-pass system handles cross-chunk propagation. Smooth lighting with AO samples corners per face.
 
 6. **Meshing** (`Jobs/MeshingJobs.cs`, `Meshing/VisualMesher.cs`) - Burst-compiled mesh generation. Custom vertex layout: Position, Normal, UV, SunLight (TexCoord1), BlockLight (TexCoord2). `CollisionMesher` generates physics mesh.
 
@@ -107,30 +107,4 @@ VektorVoxels
 ## Additional Documentation
 
 - **`docs/chunk_pipeline_audit.md`** - Technical deep-dive on chunk pipeline and boundary propagation issues
-- **`docs/initial_report.md`** - Comprehensive code audit with issues categorized by severity
-- **`.claude/memory/architecture.md`** - Deep architectural knowledge (state machines, algorithms, data structures)
-- **`.claude/memory/sessions.md`** - Active work tracking for session continuity
-
-The memory file contains critical non-obvious knowledge with confidence tags. Consult it before making significant changes to threading, lighting, or chunk systems.
-
-## Memory System Maintenance
-
-When making significant changes:
-
-1. **Update `.claude/memory/architecture.md`** if you modify:
-   - Threading/job system behavior
-   - Chunk state machine transitions
-   - Lighting propagation algorithm
-   - Coordinate systems or indexing
-
-2. **Add confidence tags** to new knowledge:
-   - `[VERIFIED, HIGH]` - Directly observable in code
-   - `[INFERRED, MEDIUM]` - Derived from patterns
-   - `[ASSUMED, LOW]` - Needs verification
-
-3. **Update session state** in `.claude/memory/sessions.md` when:
-   - Starting multi-session work
-   - Making progress on ongoing tasks
-   - Completing or abandoning work streams
-
-This keeps the knowledge base accurate for future Claude instances and developers.
+- **`docs/initial_report.md`** - Code audit with issues categorized by severity

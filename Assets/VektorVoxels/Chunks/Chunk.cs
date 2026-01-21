@@ -479,6 +479,13 @@ namespace VektorVoxels.Chunks {
         /// This bypasses the normal state machine since lighting was handled externally.
         /// </summary>
         public void QueueMeshPassFromWorld() {
+            // Skip if already meshing or has unconsumed mesh data from a previous job.
+            // Mark dirty so we re-mesh with updated lighting after current job completes.
+            if (_state == ChunkState.Meshing || !_latestMeshUsed) {
+                _isDirty = true;
+                return;
+            }
+
             _waitingForJob = true;
             _lightPass = LightPass.Third; // Mark as fully lit
             QueueMeshPass();
@@ -589,11 +596,9 @@ namespace VektorVoxels.Chunks {
             _mesh.RecalculateBounds();
             _meshRenderer.forceRenderingOff = false;
 
-            if (_isDirty) {
-                _isDirty = false;
-            }
+            // Note: Don't clear _isDirty here as it may have been set during the mesh pass
+            // to request a re-mesh with updated data. Reload() clears it when starting.
 
-            // Clear flags.
             _state = ChunkState.Ready;
         }
         

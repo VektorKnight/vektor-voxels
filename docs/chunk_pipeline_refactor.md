@@ -6,9 +6,9 @@
 
 ---
 
-## Executive Summary
+## Overview
 
-This document outlines a phased refactoring of the chunk pipeline to address architectural issues identified during the 2025-11-25 audit. Each phase is designed to be:
+Phased refactoring of the chunk pipeline to address issues found in the 2025-11-25 audit. Each phase is:
 
 1. **Independently testable** - Can verify correctness before proceeding
 2. **Safely revertible** - Isolated changes that can be rolled back
@@ -686,6 +686,6 @@ Delete:
 
 ## Revision History
 
-| Date | Author | Changes |
-|------|--------|---------|
-| 2025-11-25 | Claude | Initial plan created |
+| Date | Changes |
+|------|---------|
+| 2025-11-25 | Initial plan |

@@ -48,3 +48,11 @@ UserSettings/Layouts/default-6000.dwlt
 /.vscode
 *.slnx
 *.dwlt
+.DS_Store
+
+# Claude Code
+.claude/
+CLAUDE.md
+/.claude
+CLAUDE.md
+/docs

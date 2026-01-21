@@ -9,7 +9,7 @@
 
 ## Table of Contents
 
-1. [Executive Summary](#executive-summary)
+1. [Overview](#overview)
 2. [Architecture Overview](#architecture-overview)
 3. [State Machine Analysis](#state-machine-analysis)
 4. [Lighting System Deep Dive](#lighting-system-deep-dive)
@@ -19,17 +19,17 @@
 
 ---
 
-## Executive Summary
+## Overview
 
-The Vektor Voxels chunk pipeline has undergone significant rearchitecture, moving from a custom thread pool with lock-based synchronization to Unity's Job System with Burst compilation. The current system uses **coordinated multi-pass lighting** where VoxelWorld orchestrates all dirty chunks through synchronized passes, eliminating the race conditions that plagued the previous hybrid approach.
+The chunk pipeline moved from a custom thread pool to Unity's Job System with Burst. Uses **coordinated multi-pass lighting** where VoxelWorld orchestrates dirty chunks through synchronized passes, avoiding the race conditions in the old hybrid approach.
 
-**Key architectural decisions:**
-- Chunks are 16x256x16 voxels (65,536 voxels per chunk)
-- Finite world: up to 64x64 chunks resident in memory
-- Three-pass lighting with barrier synchronization between passes
-- No GPU lightmaps; lighting baked into vertex data (40-byte vertices)
+**Key details:**
+- Chunks are 16x256x16 voxels (65,536 per chunk)
+- Finite world: up to 64x64 chunks in memory
+- Three-pass lighting with barriers between passes
+- Lighting baked into vertex data (40-byte vertices), no GPU lightmaps
 
-**Current stability:** Core pipeline is functional. The legacy threading system has been fully removed. Remaining issues are concentrated in edge cases around light removal and partial chunk loading at view boundaries.
+**Status:** Core pipeline works. Legacy threading removed. Remaining issues are edge cases around light removal and partial chunk loading at view boundaries.
 
 ---
 
@@ -233,7 +233,7 @@ Consider this cross-chunk scenario:
 - After Pass 2: Chunk B reads A's border, propagates inward
 - After Pass 3: Chunk A can read B's updated border for convergence
 
-In practice, Pass 3 may be redundant for most scenarios but ensures convergence for corner cases where light bounces between multiple chunks.
+Pass 3 may be redundant for most scenarios but handles corner cases where light bounces between multiple chunks.
 
 ---
 
@@ -434,7 +434,6 @@ The heightmap is updated after the voxel, which is correct. However, `SyncVoxels
 
 ## Changelog
 
-| Date | Author | Notes |
-|------|--------|-------|
-| 2025-11-27 | Claude | Initial audit for boundary propagation discussion |
-| 2025-11-27 | Arya   | Review and for consistency and accuracy           |
+| Date | Notes |
+|------|-------|
+| 2025-11-27 | Initial audit |

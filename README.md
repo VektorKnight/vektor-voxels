@@ -1,7 +1,6 @@
 # Vektor Voxels
 
-Cubic voxel research project built in Unity to explore Minecraft-like voxel engines, multithreading, and RGB lighting. This should as a decent-enough reference for any curiosities around cubic voxel engines and how to approach them.
-In order to keep up with the industry as well as learn some new principles, the most recent work to bring it to a solid stopping point was done with AI assistance.
+Cubic voxel research project built in Unity to explore Minecraft-like voxel engines, multithreading, and RGB lighting. Should serve as a decent reference for anyone curious about cubic voxel engines and how to approach them.
 
 ## Features
 
@@ -28,9 +27,7 @@ The mesher generates efficient geometry with per-side textures, block orientatio
 
 ## Project Status
 
-I have decided to continue development on this as time and interest allows. The goal is not to produce a production-worthy game that would by any means try to compete with Minecraft or potentially Hytale. The core of this project is still research and general passion. The secondary goal is a robust example of a voxel engine implemented in Unity.
-
-Note that AI development tools are being used in this project. This is partially responsible for the project being revived at all. Proper consideration is being given around optimal usage and auditing work done by the agent. Degradations in code quality, architecture, or documentation are not expected.
+Development continues as time and interest allows. This isn't meant to compete with Minecraft or Hytale - it's a research project driven by curiosity. A secondary goal is to provide a solid example of a voxel engine in Unity.
 
 ## Known Limitations
 

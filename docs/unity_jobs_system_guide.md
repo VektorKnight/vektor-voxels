@@ -253,7 +253,7 @@ Chunk Lifecycle:
 
 ### Purpose
 
-Centralized storage for all chunk data in native arrays. This allows jobs to access chunk data without going through managed Chunk objects.
+Holds all chunk data in native arrays so jobs can access it without going through managed Chunk objects.
 
 ### Structure
 
@@ -805,7 +805,3 @@ _useUnityJobsMeshing   // Toggle mesh generation
 - [Native Containers](https://docs.unity3d.com/Manual/JobSystemNativeContainer.html)
 - [Unity.Mathematics](https://docs.unity3d.com/Packages/com.unity.mathematics@latest)
 
----
-
-*Document generated: November 2025*
-*VektorVoxels Unity Jobs Rearchitecture*

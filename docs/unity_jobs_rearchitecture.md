@@ -6,19 +6,14 @@
 
 ---
 
-## Executive Summary
+## Goals
 
-This document outlines a comprehensive rearchitecture of Vektor Voxels from a custom thread pool system to Unity's Job System with Burst compilation. The goal is to achieve:
+Moving from the custom thread pool to Unity's Job System with Burst:
 
-1. **Performance**: 5-10x improvement in light propagation and meshing through SIMD vectorization
-2. **Stability**: Elimination of race conditions through dependency-based scheduling
-3. **Maintainability**: Simpler synchronization model without manual locking
-4. **GC Elimination**: Zero per-frame allocations through NativeContainers
-
-### Project Goals (User-Defined)
-- Decent terrain generation
-- Creative mode functionality (walk, build, light, save/load)
-- Not a full game, but a polished reference implementation
+1. **Performance**: 5-10x faster light propagation and meshing via SIMD
+2. **Stability**: No more race conditions - dependency-based scheduling instead of locks
+3. **Maintainability**: Simpler sync model without manual locking
+4. **GC Elimination**: Zero per-frame allocations with NativeContainers
 
 ---
 
@@ -661,32 +656,32 @@ public static class ChunkSerializer {
 Each phase can be completed and tested independently:
 
 ```
-Week 1-2: Phase 1 (Data Layer)
+Phase 1 (Data Layer)
     - ChunkDataStore alongside existing Chunk
     - Dual-write to both systems
     - Verify data consistency
 
-Week 3-4: Phase 2 (Terrain Generation)
+Phase 2 (Terrain Generation)
     - New Burst terrain jobs
     - A/B test against old generator
     - Remove old GenerationJob
 
-Week 5-7: Phase 3 (Lighting)
+Phase 3 (Lighting)
     - New light propagation with removal support
     - Extensive testing of edge cases
     - Remove old LightMapper/LightJob
 
-Week 8-9: Phase 4 (Meshing)
+Phase 4 (Meshing)
     - New Burst meshing jobs
     - Verify visual parity
     - Remove old VisualMesher/MeshJob
 
-Week 10: Phase 5 (Integration)
+Phase 5 (Integration)
     - New ChunkManager
     - Remove GlobalThreadPool
     - Performance profiling
 
-Week 11-12: Phase 6 (Persistence)
+Phase 6 (Persistence)
     - Save/load implementation
     - Testing and polish
 ```
@@ -791,6 +786,6 @@ Each phase creates a stable state:
 
 ## Revision History
 
-| Date | Author | Changes |
-|------|--------|---------|
-| 2025-11-25 | Claude | Initial plan created |
+| Date | Changes |
+|------|---------|
+| 2025-11-25 | Initial plan |
